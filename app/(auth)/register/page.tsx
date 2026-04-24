@@ -1,16 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
-export default function RegisterPage() {
+function RegisterForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const searchParams = useSearchParams();
+  const next = searchParams.get('next');
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +54,10 @@ export default function RegisterPage() {
             Silakan cek email Anda untuk memverifikasi akun (jika konfirmasi email aktif di pilihan Supabase).
           </p>
           <div className="mt-8">
-            <Link href="/login" className="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
+            <Link 
+              href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} 
+              className="bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+            >
               Kembali ke Login
             </Link>
           </div>
@@ -129,11 +135,19 @@ export default function RegisterPage() {
 
         <div className="mt-8 text-center text-sm text-gray-600">
           Sudah punya akun?{' '}
-          <Link href="/login" className="text-sky-600 hover:underline font-medium">
+          <Link href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"} className="text-sky-600 hover:underline font-medium">
             Masuk
           </Link>
         </div>
       </div>
     </div>
   );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-gray-50 p-4 font-medium text-gray-500">Loading...</div>}>
+      <RegisterForm />
+    </Suspense>
+  )
 }
