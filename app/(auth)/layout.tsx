@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasSupabaseEnv } from '@/lib/env';
 import SetupRequired from '@/components/SetupRequired';
 import Link from 'next/link';
-import { LogOut, Users, Calculator, LayoutDashboard } from 'lucide-react';
+import { LogOut, Users, Calculator, LayoutDashboard, Building2 } from 'lucide-react';
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
   if (!hasSupabaseEnv()) {
@@ -32,6 +32,10 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           <Link href="/dashboard" className="flex items-center gap-3 p-3 text-zinc-400 hover:bg-[#18181B] transition-colors cursor-pointer border-l-2 border-transparent hover:border-[#D4AF37]">
             <LayoutDashboard size={20} className="opacity-50" />
             <span className="text-sm font-medium">Dashboard</span>
+          </Link>
+          <Link href="/companies" className="flex items-center gap-3 p-3 text-zinc-400 hover:bg-[#18181B] transition-colors cursor-pointer border-l-2 border-transparent hover:border-[#D4AF37]">
+            <Building2 size={20} className="opacity-50" />
+            <span className="text-sm font-medium">Companies</span>
           </Link>
           <Link href="/employees" className="flex items-center gap-3 p-3 text-zinc-400 hover:bg-[#18181B] transition-colors cursor-pointer border-l-2 border-transparent hover:border-[#D4AF37]">
             <Users size={20} className="opacity-50" />

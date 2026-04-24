@@ -16,6 +16,8 @@ export interface KaryawanTetap {
     pulsa: number;
     operasional: number;
     tunj_lain: number;
+    thr: number;
+    bonus: number;
     ikut_jht: boolean;
     ikut_jp: boolean;
     ikut_jkp: boolean;
@@ -50,6 +52,8 @@ export interface KaryawanTidakTetap {
     ikut_kes: boolean;
     kasbon: number;
     pot_lain: number;
+    thr?: number;
+    bonus?: number;
 }
 
 export function getTerRate(bruto_bulanan: number, grup: "A" | "B" | "C"): number {
@@ -117,9 +121,12 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     const basis = k.gaji_pokok;
 
     const allowance_total = k.benefit + k.kendaraan + k.pulsa + k.operasional + k.tunj_lain;
+    const irregular_total = k.thr + k.bonus;
     const bpjs = calculateBPJS(basis, k);
 
-    const base = k.gaji_pokok + allowance_total + bpjs.employer_in_bruto + bpjs.karyawan_tunj;
+    // Initial base without PPh Grossup
+    // Bruto = Regular + Irregular + BPJS Employer (Taxable) + Tunjangan BPJS Employee
+    const base = k.gaji_pokok + allowance_total + irregular_total + bpjs.employer_in_bruto + bpjs.karyawan_tunj;
 
     if (k.bulan === 12) {
         return calculateDecember(k, bpjs, allowance_total, base, grup, k.akum_bruto);
@@ -171,10 +178,10 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
     const bruto = base + tunj_pph;
     const ter = getTerRate(bruto, grup);
 
-    const thp = k.gaji_pokok + allowance_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
+    const thp = k.gaji_pokok + allowance_total + irregular_total - bpjs.karyawan_potong - pot_pph - k.kasbon - k.alpha_telat - k.pot_lain;
 
     return {
-        jenis: "GAJI BULANAN",
+        jenis: "GAJI BULANAN INTEGRATED",
         bulan: k.bulan,
         tahun: k.tahun,
         grup, ter,
@@ -184,6 +191,7 @@ export function calculateMonthlySalary(k: KaryawanTetap) {
         allowance_total, benefit: k.benefit,
         kendaraan: k.kendaraan, pulsa: k.pulsa,
         operasional: k.operasional, tunj_lain: k.tunj_lain,
+        thr_nominal: k.thr, bonus_nominal: k.bonus,
         tunj_pph, base, bruto, pph, pot_pph,
         pph_ditanggung: k.pph_ditanggung,
         kasbon: k.kasbon, alpha_telat: k.alpha_telat, pot_lain: k.pot_lain,
@@ -283,7 +291,8 @@ export function calculateFreelance(k: KaryawanTidakTetap) {
 
     if (k.mode === "harian") {
         const BATAS_HARIAN = 450_000;
-        const total_upah = k.upah_harian * k.hari_kerja;
+        const upah_reg = k.upah_harian * k.hari_kerja;
+        const total_upah = upah_reg + (k.thr || 0) + (k.bonus || 0);
         let pph_per_hari = 0;
         let keterangan = "";
         
@@ -311,7 +320,7 @@ export function calculateFreelance(k: KaryawanTidakTetap) {
             kasbon: k.kasbon, pot_lain: k.pot_lain, thp, keterangan,
         };
     } else {
-        const upah = k.upah_bulanan + k.tunjangan;
+        const upah = k.upah_bulanan + k.tunjangan + (k.thr || 0) + (k.bonus || 0);
         let pph = 0;
         let pkp = 0;
         let keterangan = "";
