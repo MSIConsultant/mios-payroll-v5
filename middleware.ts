@@ -37,6 +37,10 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // IMPORTANT: Avoid writing any logic between createServerClient and
+  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+  // issues with users being randomly logged out.
+
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -49,11 +53,28 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     
-    // Create a new response with the redirect but clone the headers/cookies from supabaseResponse
+    // Create new response for redirect
     const response = NextResponse.redirect(url)
-    supabaseResponse.cookies.getAll().forEach(cookie => {
+    
+    // IMPORTANT: We must carry over BOTH the original cookies and any refreshed ones
+    // First, copy existing cookies from the request
+    request.cookies.getAll().forEach((cookie) => {
       response.cookies.set(cookie.name, cookie.value)
     })
+    
+    // Then, override with any potentially refreshed cookies from Supabase
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, {
+        path: cookie.path,
+        domain: cookie.domain,
+        maxAge: cookie.maxAge,
+        expires: cookie.expires,
+        sameSite: cookie.sameSite,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+      })
+    })
+    
     return response
   }
   
@@ -61,10 +82,27 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     
+    // Create new response for redirect
     const response = NextResponse.redirect(url)
-    supabaseResponse.cookies.getAll().forEach(cookie => {
+    
+    // Copy existing cookies
+    request.cookies.getAll().forEach((cookie) => {
       response.cookies.set(cookie.name, cookie.value)
     })
+    
+    // Override with refreshed cookies
+    supabaseResponse.cookies.getAll().forEach((cookie) => {
+      response.cookies.set(cookie.name, cookie.value, {
+        path: cookie.path,
+        domain: cookie.domain,
+        maxAge: cookie.maxAge,
+        expires: cookie.expires,
+        sameSite: cookie.sameSite,
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+      })
+    })
+    
     return response
   }
 
