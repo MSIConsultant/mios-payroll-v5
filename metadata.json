@@ -1,6 +1,6 @@
 {
-  "name": "",
-  "description": "",
+  "name": "MIOS Payroll",
+  "description": "Multi-tenant Tax & Payroll Calculator for Indonesian Tax (PPh 21) following TER 2024 regulations.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

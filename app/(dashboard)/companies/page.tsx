@@ -15,10 +15,13 @@ export default function CompaniesPage() {
 
   useEffect(() => {
     async function fetchCompanies() {
-      if (!workspace) return;
+      if (!workspace) {
+        setLoading(false);
+        return;
+      }
       
       const supabase = createClient();
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('companies')
         .select('*')
         .eq('workspace_id', workspace.id)
@@ -30,11 +33,7 @@ export default function CompaniesPage() {
     }
 
     if (!wsLoading) {
-      if (workspace) {
-        fetchCompanies();
-      } else {
-        setLoading(false);
-      }
+      fetchCompanies();
     }
   }, [workspace, wsLoading]);
 
