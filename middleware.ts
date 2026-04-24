@@ -47,22 +47,20 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
   
-  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/invite') || pathname.startsWith('/auth')
+  const isAuthPage = pathname.startsWith('/login') || pathname.startsWith('/register') || pathname.startsWith('/invite') || pathname.startsWith('/auth') || pathname.startsWith('/oauth')
   
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     
-    // Create new response for redirect
+    // Preserve current path for post-login redirect
+    if (pathname !== '/') {
+      url.searchParams.set('next', pathname + request.nextUrl.search)
+    }
+    
     const response = NextResponse.redirect(url)
     
-    // IMPORTANT: We must carry over BOTH the original cookies and any refreshed ones
-    // First, copy existing cookies from the request
-    request.cookies.getAll().forEach((cookie) => {
-      response.cookies.set(cookie.name, cookie.value)
-    })
-    
-    // Then, override with any potentially refreshed cookies from Supabase
+    // Copy cookies to preserve session state
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       response.cookies.set(cookie.name, cookie.value, {
         path: cookie.path,
@@ -78,19 +76,36 @@ export async function middleware(request: NextRequest) {
     return response
   }
   
-  if (user && isAuthPage && !pathname.startsWith('/invite') && !pathname.startsWith('/auth')) {
+  if (user && (pathname === '/login' || pathname === '/register')) {
+    const nextPath = request.nextUrl.searchParams.get('next')
     const url = request.nextUrl.clone()
-    url.pathname = '/'
-    
-    // Create new response for redirect
+    url.pathname = nextPath || '/'
+    // If nextPath had its own search params, clone() would have kept them,
+    // but the search property of the current URL also includes ?next=...
+    // To be safe, if we use nextPath, we might want to clear existing params
+    if (nextPath) {
+      url.search = '' // Clear ?next= and any other login-page params
+      // However, if we want to preserve the target's original params, we'd need to parse nextPath
+      try {
+         const decodedNext = decodeURIComponent(nextPath)
+         if (decodedNext.includes('?')) {
+            const [path, query] = decodedNext.split('?')
+            url.pathname = path
+            url.search = query
+         } else {
+            url.pathname = decodedNext
+            url.search = ''
+         }
+      } catch (e) {
+         url.pathname = '/'
+      }
+    } else {
+      url.search = ''
+    }
+
     const response = NextResponse.redirect(url)
     
-    // Copy existing cookies
-    request.cookies.getAll().forEach((cookie) => {
-      response.cookies.set(cookie.name, cookie.value)
-    })
-    
-    // Override with refreshed cookies
+    // Copy cookies to preserve session state
     supabaseResponse.cookies.getAll().forEach((cookie) => {
       response.cookies.set(cookie.name, cookie.value, {
         path: cookie.path,
