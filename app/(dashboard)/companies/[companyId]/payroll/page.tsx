@@ -1,161 +1,147 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { 
-  History, 
-  Plus, 
-  Calendar, 
-  ChevronRight, 
-  ArrowLeft,
-  CheckCircle2,
-  Clock,
-  Lock
-} from 'lucide-react';
+import { ArrowLeft, ChevronRight, Plus } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
+
+const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
 export default function PayrollOverviewPage() {
   const { companyId } = useParams();
   const [runs, setRuns] = useState<any[]>([]);
+  const [company, setCompany] = useState<any>(null);
+  const [totalsMap, setTotalsMap] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [selTahun, setSelTahun] = useState(new Date().getFullYear());
   const [selBulan, setSelBulan] = useState(new Date().getMonth() + 1);
 
   useEffect(() => {
-    async function fetchRuns() {
+    async function fetchData() {
       const supabase = createClient();
-      const { data } = await supabase
-        .from('payroll_runs')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('tahun', { ascending: false })
-        .order('bulan', { ascending: false });
-      
-      if (data) setRuns(data);
+      const [{ data: co }, { data: runsData }] = await Promise.all([
+        supabase.from('companies').select('name').eq('id', companyId).single(),
+        supabase.from('payroll_runs').select('*').eq('company_id', companyId)
+          .order('tahun', { ascending: false }).order('bulan', { ascending: false }),
+      ]);
+      if (co) setCompany(co);
+      if (runsData) {
+        setRuns(runsData);
+        const runIds = runsData.map(r => r.id);
+        if (runIds.length > 0) {
+          const { data: totals } = await supabase.from('payroll_results')
+            .select('run_id, thp, bruto, pph').in('run_id', runIds);
+          const map: Record<string, any> = {};
+          for (const t of totals ?? []) {
+            if (!map[t.run_id]) map[t.run_id] = { thp: 0, bruto: 0, pph: 0, count: 0 };
+            map[t.run_id].thp += t.thp ?? 0;
+            map[t.run_id].bruto += t.bruto ?? 0;
+            map[t.run_id].pph += t.pph ?? 0;
+            map[t.run_id].count += 1;
+          }
+          setTotalsMap(map);
+        }
+      }
       setLoading(false);
     }
-    fetchRuns();
+    fetchData();
   }, [companyId]);
 
-  const bulanNames = [
-    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-  ];
-
   return (
-    <div className="max-w-5xl mx-auto space-y-12">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link 
-            href={`/companies/${companyId}`}
-            className="w-10 h-10 bg-white border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-sky-600 transition-all shadow-sm"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Payroll Hub</h1>
-            <p className="text-gray-500 text-sm">Manajemen penggajian bulanan perusahaan.</p>
-          </div>
+    <div className="max-w-4xl space-y-6">
+      <div className="flex items-center gap-4">
+        <Link href={`/companies/${companyId}`}
+          className="w-9 h-9 bg-[#111113] border border-[#1A1A1C] rounded-lg flex items-center justify-center text-zinc-600 hover:text-zinc-200 transition-colors">
+          <ArrowLeft size={15} />
+        </Link>
+        <div>
+          <h1 className="text-xl font-bold text-zinc-100">Payroll Hub</h1>
+          <p className="text-[11px] text-zinc-600 mt-0.5">{company?.name ?? '—'}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Run New Selector */}
-        <div className="lg:col-span-1 space-y-6">
-           <div className="bg-white border border-gray-100 rounded-3xl shadow-sm p-8">
-              <div className="w-12 h-12 bg-sky-50 text-sky-600 rounded-2xl flex items-center justify-center mb-6">
-                 <Plus className="w-6 h-6" />
-              </div>
-              <h3 className="font-bold text-gray-900 mb-2">Jalankan Payroll Baru</h3>
-              <p className="text-xs text-gray-500 leading-relaxed mb-8">Pilih periode untuk mulai menghitung pajak & gaji karyawan.</p>
-              
-              <div className="space-y-4">
-                 <div>
-                    <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">Tahun</label>
-                    <select 
-                      value={selTahun} 
-                      onChange={(e) => setSelTahun(Number(e.target.value))}
-                      className="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-sky-500 rounded-xl outline-none transition-all font-bold"
-                    >
-                       {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
-                 </div>
-                 <div>
-                    <label className="block text-[10px] uppercase tracking-widest font-bold text-gray-400 mb-2">Bulan</label>
-                    <select 
-                      value={selBulan}
-                      onChange={(e) => setSelBulan(Number(e.target.value))}
-                      className="w-full px-4 py-3 bg-gray-50 border-transparent focus:bg-white focus:border-sky-500 rounded-xl outline-none transition-all font-bold"
-                    >
-                       {bulanNames.map((n, i) => <option key={i} value={i+1}>{n}</option>)}
-                    </select>
-                 </div>
-                 <Link 
-                   href={`/companies/${companyId}/payroll/${selTahun}/${selBulan}`}
-                   className="flex items-center justify-center gap-2 w-full py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl font-bold transition-all shadow-xl shadow-sky-100 mt-4 group"
-                 >
-                   Mulai Hitung
-                   <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                 </Link>
-              </div>
-           </div>
+      <div className="grid grid-cols-3 gap-4">
+        {/* New Run */}
+        <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5 col-span-1">
+          <div className="flex items-center gap-2 mb-4">
+            <Plus size={13} className="text-[#D4AF37]" />
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Payroll Baru</p>
+          </div>
+          <div className="space-y-3 mb-5">
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-700 uppercase tracking-widest mb-1.5">Tahun</label>
+              <select value={selTahun} onChange={e => setSelTahun(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 font-mono">
+                {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-zinc-700 uppercase tracking-widest mb-1.5">Bulan</label>
+              <select value={selBulan} onChange={e => setSelBulan(Number(e.target.value))}
+                className="w-full px-3 py-2 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
+                {BULAN_NAMES.map((n, i) => <option key={i} value={i + 1}>{n}</option>)}
+              </select>
+            </div>
+          </div>
+          <Link href={`/companies/${companyId}/payroll/${selTahun}/${selBulan}`}
+            className="flex items-center justify-center gap-2 w-full py-2.5 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors group">
+            Mulai Hitung
+            <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
+          </Link>
         </div>
 
-        {/* History List */}
-        <div className="lg:col-span-2 space-y-6">
-           <div className="flex items-center justify-between px-2">
-              <div className="flex items-center gap-2">
-                 <History className="w-4 h-4 text-gray-400" />
-                 <h3 className="font-bold text-gray-900 text-sm uppercase tracking-widest">Riwayat Payroll</h3>
-              </div>
-           </div>
+        {/* Run History CLI */}
+        <div className="col-span-2">
+          <div className="bg-[#080809] border border-[#1A1A1C] rounded-lg overflow-hidden font-mono h-full">
+            <div className="px-4 py-2 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-500/40" />
+              <div className="w-2 h-2 rounded-full bg-yellow-500/40" />
+              <div className="w-2 h-2 rounded-full bg-green-500/40" />
+              <span className="ml-3 text-[10px] text-zinc-700 uppercase tracking-widest">riwayat_payroll.log</span>
+            </div>
 
-           {loading ? (
-             <div className="space-y-4">
-                {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-3xl animate-pulse" />)}
-             </div>
-           ) : runs.length === 0 ? (
-             <div className="bg-white border border-dashed border-gray-200 rounded-3xl p-12 text-center text-gray-400">
-                <Calendar className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                <p className="text-sm font-medium italic">Belum ada riwayat payroll yang dijalankan.</p>
-             </div>
-           ) : (
-             <div className="space-y-4">
-                {runs.map(run => (
-                   <Link 
-                     key={run.id}
-                     href={`/companies/${companyId}/payroll/${run.tahun}/${run.bulan}`}
-                     className="block bg-white border border-gray-100 rounded-3xl p-6 hover:shadow-md hover:border-sky-100 transition-all group"
-                   >
-                     <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-5">
-                           <div className="w-12 h-12 bg-gray-50 rounded-2xl flex flex-col items-center justify-center group-hover:bg-sky-50 transition-colors">
-                              <span className="text-[10px] font-bold text-gray-400 items-start leading-none mb-1">{run.tahun}</span>
-                              <span className="text-sm font-black text-gray-900 leading-none">{run.bulan.toString().padStart(2, '0')}</span>
-                           </div>
-                           <div>
-                              <h4 className="font-bold text-gray-900">{bulanNames[run.bulan - 1]} {run.tahun}</h4>
-                              <div className="flex items-center gap-3 mt-1">
-                                 <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${
-                                    run.status === 'locked' ? 'text-amber-600' : 'text-emerald-600'
-                                 }`}>
-                                    {run.status === 'locked' ? <Lock className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                                    {run.status}
-                                 </span>
-                                 <span className="text-[10px] text-gray-300">•</span>
-                                 <span className="text-[10px] text-gray-400 font-medium">Terakhir dihitung: {new Date(run.calculated_at).toLocaleDateString('id-ID')}</span>
-                              </div>
-                           </div>
+            {loading ? (
+              <div className="px-5 py-6 space-y-3">
+                {[1,2,3].map(i => <div key={i} className="h-12 bg-[#111113] rounded animate-pulse" />)}
+              </div>
+            ) : runs.length === 0 ? (
+              <div className="px-5 py-10 text-xs text-zinc-700">$ Belum ada riwayat payroll.</div>
+            ) : (
+              <div>
+                {runs.map((run, i) => {
+                  const t = totalsMap[run.id];
+                  return (
+                    <Link key={run.id}
+                      href={`/companies/${companyId}/payroll/${run.tahun}/${run.bulan}`}
+                      className={`block px-5 py-4 hover:bg-[#0F0F11] transition-colors ${i < runs.length - 1 ? 'border-b border-[#131315]' : ''}`}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs text-zinc-300">
+                          <span className="text-[#D4AF37]">$</span>{' '}
+                          <span className="font-bold">{BULAN_NAMES[run.bulan - 1]} {run.tahun}</span>
+                        </span>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
+                          run.status === 'locked' ? 'bg-green-900/30 text-green-400' :
+                          run.status === 'calculated' ? 'bg-sky-900/30 text-sky-400' :
+                          'bg-zinc-800 text-zinc-600'
+                        }`}>{run.status}</span>
+                      </div>
+                      {t ? (
+                        <div className="pl-3 grid grid-cols-4 gap-x-3 text-[11px]">
+                          <span><span className="text-zinc-700">karyawan  </span><span className="text-zinc-400">{t.count}</span></span>
+                          <span><span className="text-zinc-700">bruto     </span><span className="text-zinc-300">{formatRupiah(t.bruto)}</span></span>
+                          <span><span className="text-zinc-700">pph21     </span><span className="text-amber-400">{formatRupiah(t.pph)}</span></span>
+                          <span><span className="text-zinc-700">thp       </span><span className="text-green-400">{formatRupiah(t.thp)}</span></span>
                         </div>
-                        <ChevronRight className="w-5 h-5 text-gray-200 group-hover:text-sky-400 transition-colors" />
-                     </div>
-                   </Link>
-                ))}
-             </div>
-           )}
+                      ) : (
+                        <p className="pl-3 text-[11px] text-zinc-700">── belum ada hasil</p>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
