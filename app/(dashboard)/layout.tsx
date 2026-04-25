@@ -2,58 +2,47 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { hasSupabaseEnv } from '@/lib/env';
 import SetupRequired from '@/components/SetupRequired';
-import Link from 'next/link';
-import { LogOut, LayoutDashboard, Building2 } from 'lucide-react';
+import NavLinks from '@/components/layout/NavLinks';
+import { LogOut } from 'lucide-react';
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  if (!hasSupabaseEnv()) {
-    return <SetupRequired />;
-  }
+  if (!hasSupabaseEnv()) return <SetupRequired />;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    redirect('/login');
-  }
+  if (!user) redirect('/login');
+
   return (
-    <div className="flex h-screen bg-[#050505] overflow-hidden text-[#E4E4E7]">
-      <aside className="w-64 bg-[#0A0A0B] border-r border-[#27272A] flex flex-col">
-        <div className="p-8 border-b border-[#27272A] flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#D4AF37] rounded-sm flex items-center justify-center shrink-0">
-            <span className="text-[#0A0A0B] font-bold">M</span>
+    <div className="flex h-screen bg-[#0D0D0F] overflow-hidden text-zinc-100">
+      <aside className="w-56 bg-[#0A0A0B] border-r border-[#1A1A1C] flex flex-col flex-shrink-0">
+        <div className="px-4 py-5 border-b border-[#1A1A1C] flex items-center gap-3">
+          <div className="w-8 h-8 bg-[#D4AF37] rounded flex items-center justify-center shrink-0">
+            <span className="text-[#0A0A0B] font-black text-sm">M</span>
           </div>
-          <h1 className="text-xl font-serif italic tracking-tight text-[#E4E4E7]">MIOS Payroll</h1>
+          <div>
+            <p className="font-bold text-zinc-100 text-sm leading-none">MIOS Payroll</p>
+            <p className="text-[10px] text-zinc-600 uppercase tracking-widest mt-0.5">Indonesia</p>
+          </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-4 space-y-2 mt-4">
-          <Link href="/dashboard" className="flex items-center gap-3 p-3 text-zinc-400 hover:bg-[#18181B] transition-colors cursor-pointer border-l-2 border-transparent hover:border-[#D4AF37]">
-            <LayoutDashboard size={20} className="opacity-50" />
-            <span className="text-sm font-medium">Dashboard</span>
-          </Link>
-          <Link href="/companies" className="flex items-center gap-3 p-3 text-zinc-400 hover:bg-[#18181B] transition-colors cursor-pointer border-l-2 border-transparent hover:border-[#D4AF37]">
-            <Building2 size={20} className="opacity-50" />
-            <span className="text-sm font-medium">Perusahaan</span>
-          </Link>
-        </nav>
+        <NavLinks />
 
-        <div className="mt-auto p-6 border-t border-[#27272A] bg-[#0E0E10]">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500"></div>
-            <div className="overflow-hidden">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">{user.email}</p>
-              <p className="text-sm font-medium truncate">System User</p>
-            </div>
+        <div className="p-3 border-t border-[#1A1A1C] mt-auto">
+          <div className="px-2 py-2 mb-1">
+            <p className="text-[10px] text-zinc-600 truncate">{user.email}</p>
           </div>
           <form action="/auth/signout" method="post">
-            <button type="submit" className="flex items-center gap-2 text-zinc-500 hover:text-red-500 text-xs font-bold uppercase tracking-widest transition-colors w-full p-2 bg-[#18181B] justify-center hover:bg-[#050505] border border-[#27272A]">
-              <LogOut size={16} />
-              Sign Out
+            <button type="submit" className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-600 hover:text-red-400 hover:bg-[#111113] rounded-lg transition-all">
+              <LogOut size={13} />
+              Keluar
             </button>
           </form>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-[#050505]">
-        {children}
+      <main className="flex-1 overflow-y-auto">
+        <div className="p-8 min-h-full">
+          {children}
+        </div>
       </main>
     </div>
   );
