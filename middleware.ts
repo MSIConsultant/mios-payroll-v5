@@ -78,31 +78,44 @@ export async function middleware(request: NextRequest) {
   
   if (user && (pathname === '/login' || pathname === '/register')) {
     const nextPath = request.nextUrl.searchParams.get('next')
-    const url = request.nextUrl.clone()
-    url.pathname = nextPath || '/'
-    // If nextPath had its own search params, clone() would have kept them,
-    // but the search property of the current URL also includes ?next=...
-    // To be safe, if we use nextPath, we might want to clear existing params
+    
     if (nextPath) {
-      url.search = '' // Clear ?next= and any other login-page params
-      // However, if we want to preserve the target's original params, we'd need to parse nextPath
       try {
-         const decodedNext = decodeURIComponent(nextPath)
-         if (decodedNext.includes('?')) {
-            const [path, query] = decodedNext.split('?')
-            url.pathname = path
-            url.search = query
-         } else {
-            url.pathname = decodedNext
-            url.search = ''
-         }
+        const decodedNext = decodeURIComponent(nextPath)
+        // If it's a full URL, redirect directly
+        if (decodedNext.startsWith('http')) {
+          const response = NextResponse.redirect(new URL(decodedNext))
+          supabaseResponse.cookies.getAll().forEach((cookie) => {
+            response.cookies.set(cookie.name, cookie.value, { ...cookie })
+          })
+          return response
+        }
+        
+        // Otherwise it's a relative path
+        const url = request.nextUrl.clone()
+        if (decodedNext.includes('?')) {
+           const [path, query] = decodedNext.split('?')
+           url.pathname = path
+           url.search = query
+        } else {
+           url.pathname = decodedNext
+           url.search = ''
+        }
+        const response = NextResponse.redirect(url)
+        supabaseResponse.cookies.getAll().forEach((cookie) => {
+          response.cookies.set(cookie.name, cookie.value, { ...cookie })
+        })
+        return response
       } catch (e) {
-         url.pathname = '/'
+         // Fallthrough
       }
-    } else {
-      url.search = ''
     }
-
+    
+    // Default fallback if no valid next parameter
+    const url = request.nextUrl.clone()
+    url.pathname = '/'
+    url.search = ''
+    
     const response = NextResponse.redirect(url)
     
     // Copy cookies to preserve session state
