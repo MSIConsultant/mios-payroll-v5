@@ -11,9 +11,9 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
   }
 
   const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (!user) {
     redirect('/login');
   }
 
@@ -51,7 +51,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500"></div>
             <div className="overflow-hidden">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">{session.user.email}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 truncate">{user.email}</p>
               <p className="text-sm font-medium truncate">System User</p>
             </div>
           </div>
