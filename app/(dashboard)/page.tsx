@@ -41,7 +41,7 @@ export default async function DashboardPage() {
     : { count: 0 };
 
   const workspacesData = membership?.workspaces;
-  const workspace = Array.isArray(workspacesData) ? workspacesData[0] : workspacesData as { name: string } | null;
+  const workspace = (Array.isArray(workspacesData) ? workspacesData[0] : workspacesData) as unknown as { name: string } | null;
 
   return (
     <div className="p-8 max-w-4xl">
