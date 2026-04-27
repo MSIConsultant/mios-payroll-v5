@@ -65,17 +65,28 @@ export default function CompanyDetailPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href={`/companies/${companyId}/payroll`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:border-[#D4AF37]/30 hover:text-zinc-200 transition-colors">
-            <Calendar size={13} />
-            Payroll
-          </Link>
-          <Link href={`/companies/${companyId}/employees/new`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
-            <Plus size={13} />
-            Karyawan
-          </Link>
-        </div>
+    <button
+      onClick={async () => {
+        if (!confirm(`${company.aktif ? 'Archive' : 'Restore'} perusahaan ini?`)) return;
+        const { archiveCompany } = await import('@/lib/actions/companies');
+        const res = await archiveCompany(company.id, !company.aktif);
+        if (res.error) alert(res.error);
+        else setCompany(c => c ? { ...c, aktif: !c.aktif } : c);
+      }}
+      className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-500 rounded-lg text-xs font-bold uppercase tracking-widest hover:border-zinc-600 hover:text-zinc-300 transition-colors">
+      {company.aktif ? 'Archive' : 'Restore'}
+    </button>
+    <Link href={`/companies/${companyId}/payroll`}
+      className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 rounded-lg text-xs font-bold uppercase tracking-widest hover:border-[#D4AF37]/30 hover:text-zinc-200 transition-colors">
+      <Calendar size={13} />
+      Payroll
+    </Link>
+    <Link href={`/companies/${companyId}/employees/new`}
+      className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+      <Plus size={13} />
+      Karyawan
+    </Link>
+  </div>
       </div>
 
       {/* Stats */}
