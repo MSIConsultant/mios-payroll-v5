@@ -1,2 +1,44 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+@keyframes scanline {
+  0%   { transform: translateY(-100%); opacity: 0.03; }
+  100% { transform: translateY(100vh); opacity: 0.03; }
+}
+@keyframes glitch {
+  0%,100% { text-shadow: none; clip-path: none; }
+  20%     { text-shadow: -2px 0 #ff4444; }
+  40%     { text-shadow: 2px 0 #4444ff; }
+  70%     { text-shadow: -1px 0 #D4AF37; }
+}
+@keyframes borderPulse {
+  0%,100% { border-color: rgba(212,175,55,0.2); }
+  50%     { border-color: rgba(212,175,55,0.6); }
+}
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-fade-in-up  { animation: fadeInUp 0.5s ease forwards; }
+.animate-fade-in     { animation: fadeIn 0.4s ease forwards; }
+.animate-blink       { animation: blink 1s step-end infinite; }
+.animate-scanline    { animation: scanline 4s linear infinite; }
+.animate-glitch      { animation: glitch 3s infinite; }
+.animate-border-pulse{ animation: borderPulse 2s ease infinite; }
+.animate-slide-left  { animation: slideInLeft 0.4s ease forwards; }
+.stagger-1 { animation-delay: 0.05s; opacity: 0; }
+.stagger-2 { animation-delay: 0.10s; opacity: 0; }
+.stagger-3 { animation-delay: 0.15s; opacity: 0; }
+.stagger-4 { animation-delay: 0.20s; opacity: 0; }
+.stagger-5 { animation-delay: 0.25s; opacity: 0; }
