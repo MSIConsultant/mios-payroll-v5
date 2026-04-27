@@ -1,59 +1,126 @@
 'use client';
-
 import { useState, Suspense } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 
 function LoginForm() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const [focused, setFocused]   = useState<string | null>(null);
   const searchParams = useSearchParams();
   const next = searchParams.get('next');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     const supabase = createClient();
-    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-    if (loginError) {
-      setError(loginError.message);
-      setLoading(false);
-    } else {
-      window.location.href = next || '/';
-    }
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) { setError(err.message); setLoading(false); }
+    else window.location.href = next || '/';
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-100 p-8">
-        <div className="text-center mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">MIOS Payroll</h1>
-          <p className="text-gray-600 mt-2">Masuk ke akun Anda</p>
+    <div className="min-h-screen bg-[#080809] flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated scanline */}
+      <div className="animate-scanline absolute inset-0 w-full h-8 bg-white/[0.02] pointer-events-none z-0" />
+
+      {/* Grid background */}
+      <div className="absolute inset-0 z-0"
+        style={{ backgroundImage: 'linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
+
+      <div className="relative z-10 w-full max-w-sm">
+        {/* Logo */}
+        <div className="text-center mb-8 animate-fade-in-up stagger-1">
+          <div className="inline-flex items-center justify-center w-12 h-12 bg-[#D4AF37] rounded mb-4"
+            style={{ boxShadow: '0 0 40px rgba(212,175,55,0.3)' }}>
+            <span className="text-[#0A0A0B] font-black text-xl">M</span>
+          </div>
+          <h1 className="text-xl font-bold text-zinc-100 animate-glitch">MIOS Payroll</h1>
+          <p className="text-[11px] text-zinc-600 uppercase tracking-widest mt-1">Indonesian Accounting Platform</p>
         </div>
-        <form onSubmit={handleLogin} className="space-y-6">
-          {error && (
-            <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none"
-              placeholder="nama@email.com" />
+
+        {/* Terminal card */}
+        <div className="bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg overflow-hidden animate-fade-in-up stagger-2"
+          style={{ boxShadow: '0 0 60px rgba(0,0,0,0.8)' }}>
+          {/* Terminal bar */}
+          <div className="px-4 py-2.5 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
+            <span className="ml-3 text-[10px] text-zinc-700 font-mono uppercase tracking-widest">
+              auth.login
+            </span>
+            <span className="ml-1 text-[#D4AF37] animate-blink font-mono text-xs">_</span>
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full px-4 py-2 border border-gray-200 rounded-lg outline-none"
-              placeholder="••••••••" />
-          </div>
-          <button type="submit" disabled={loading}
-            className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold py-2 px-4 rounded-lg disabled:opacity-50">
-            {loading ? 'Masuk...' : 'Masuk'}
-          </button>
-        </form>
+
+          <form onSubmit={handleLogin} className="p-6 space-y-4 font-mono">
+            {error && (
+              <div className="p-3 bg-red-900/20 border border-red-800/30 rounded text-xs text-red-400 animate-fade-in">
+                <span className="text-red-600">ERR </span>{error}
+              </div>
+            )}
+
+            <div className="animate-fade-in-up stagger-3">
+              <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">
+                <span className="text-[#D4AF37]">→</span> Email
+              </label>
+              <input type="email" value={email} required
+                onChange={e => setEmail(e.target.value)}
+                onFocus={() => setFocused('email')}
+                onBlur={() => setFocused(null)}
+                placeholder="nama@perusahaan.com"
+                className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-800 outline-none transition-all duration-300"
+                style={{ borderColor: focused === 'email' ? 'rgba(212,175,55,0.5)' : '#1A1A1C' }} />
+            </div>
+
+            <div className="animate-fade-in-up stagger-4">
+              <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">
+                <span className="text-[#D4AF37]">→</span> Password
+              </label>
+              <input type="password" value={password} required
+                onChange={e => setPassword(e.target.value)}
+                onFocus={() => setFocused('password')}
+                onBlur={() => setFocused(null)}
+                placeholder="••••••••"
+                className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-800 outline-none transition-all duration-300"
+                style={{ borderColor: focused === 'password' ? 'rgba(212,175,55,0.5)' : '#1A1A1C' }} />
+            </div>
+
+            <div className="pt-2 animate-fade-in-up stagger-5">
+              <button type="submit" disabled={loading}
+                className="w-full py-3 rounded-lg font-bold text-xs uppercase tracking-widest transition-all duration-300 relative overflow-hidden group disabled:opacity-50"
+                style={{ background: loading ? '#1A1A1C' : '#D4AF37', color: loading ? '#666' : '#0A0A0B' }}>
+                {/* Shimmer */}
+                <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"
+                  style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent)' }} />
+                <span className="relative">
+                  {loading ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="w-3 h-3 border border-zinc-500 border-t-zinc-300 rounded-full animate-spin" />
+                      Memproses...
+                    </span>
+                  ) : '$ masuk →'}
+                </span>
+              </button>
+            </div>
+
+            <div className="pt-2 text-center animate-fade-in stagger-5">
+              <p className="text-[11px] text-zinc-700">
+                Belum punya akun?{' '}
+                <Link href="/register" className="text-[#D4AF37] hover:text-yellow-300 transition-colors">
+                  Daftar sekarang
+                </Link>
+              </p>
+            </div>
+          </form>
+        </div>
+
+        <p className="text-center text-[10px] text-zinc-800 mt-6 font-mono animate-fade-in stagger-5">
+          PP 58/2023 · PMK 168/2023 · PPh 21 TER
+        </p>
       </div>
     </div>
   );
@@ -61,7 +128,11 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#080809] flex items-center justify-center">
+        <span className="text-zinc-700 font-mono text-xs animate-blink">Loading_</span>
+      </div>
+    }>
       <LoginForm />
     </Suspense>
   );
