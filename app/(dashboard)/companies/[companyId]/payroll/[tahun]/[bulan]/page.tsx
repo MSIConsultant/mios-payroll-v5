@@ -45,44 +45,78 @@ export default function PayrollRunPage() {
         supabase.from('payroll_runs').select('*, payroll_results(*)').eq('company_id', companyId)
           .eq('tahun', tahun).eq('bulan', bulan).maybeSingle(),
       ]);
-      if (co) setCompany(co);
-      if (empData) setEmployees(empData);
-      if (eventData) setEvents(eventData);
-      if (runData) {
-        setExistingRun(runData);
-        if (runData.payroll_results?.length > 0) {
-          const mapped = runData.payroll_results.map((r: any) => ({
-            ...r.result_json,
-            employee_id: r.employee_id,
-            employee_name: empData?.find(e => e.id === r.employee_id)?.nama,
-            _db: r,
-          }));
-          setResults(mapped);
-          setIsCalculated(true);
+
+      // Fetch Jan-Nov accumulation for December equalization
+      let accumMap: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
+      if (Number(bulan) === 12 && empData) {
+        const { data: prevRuns } = await supabase
+          .from('payroll_runs')
+          .select('id, bulan')
+          .eq('company_id', companyId)
+          .eq('tahun', tahun)
+          .neq('bulan', 12);
+
+        if (prevRuns && prevRuns.length > 0) {
+          const prevRunIds = prevRuns.map(r => r.id);
+          const { data: prevResults } = await supabase
+            .from('payroll_results')
+            .select('employee_id, bruto, pph')
+            .in('run_id', prevRunIds);
+
+          for (const r of prevResults ?? []) {
+            if (!accumMap[r.employee_id]) accumMap[r.employee_id] = { akum_bruto: 0, pph_jan_nov: 0 };
+            accumMap[r.employee_id].akum_bruto += r.bruto ?? 0;
+            accumMap[r.employee_id].pph_jan_nov += r.pph ?? 0;
+          }
         }
       }
-      setLoading(false);
+
+    if (co) setCompany(co);
+    if (empData) setEmployees(empData.map(emp => ({
+      ...emp,
+      _akum_bruto:   accumMap[emp.id]?.akum_bruto   ?? 0,
+      _pph_jan_nov:  accumMap[emp.id]?.pph_jan_nov  ?? 0,
+    })));
+    if (eventData) setEvents(eventData);
+    if (runData) {
+      setExistingRun(runData);
+      if (runData.payroll_results?.length > 0) {
+        const mapped = runData.payroll_results.map((r: any) => ({
+          ...r.result_json,
+          employee_id: r.employee_id,
+          employee_name: empData?.find(e => e.id === r.employee_id)?.nama,
+          _db: r,
+        }));
+        setResults(mapped);
+        setIsCalculated(true);
+      }
     }
-    fetchData();
-  }, [companyId, tahun, bulan]);
+    setLoading(false);
+  }
+  fetchData();
+}, [companyId, tahun, bulan]);
 
   function handleCalculate() {
     const newResults = employees.map(emp => {
       const empEvents = events.filter(e => e.employee_id === emp.id);
-      const kasbon = empEvents.filter(e => e.tipe === 'kasbon').reduce((a: number, b: any) => a + b.nilai, 0);
-      const alpha_telat = empEvents.filter(e => e.tipe === 'alpha_telat').reduce((a: number, b: any) => a + b.nilai, 0);
-      const pot_lain = empEvents.filter(e => e.tipe === 'pot_lain').reduce((a: number, b: any) => a + b.nilai, 0);
-      const thr = empEvents.filter(e => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
-      const bonus = empEvents.filter(e => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
+      const kasbon       = empEvents.filter(e => e.tipe === 'kasbon').reduce((a: number, b: any) => a + b.nilai, 0);
+      const alpha_telat  = empEvents.filter(e => e.tipe === 'alpha_telat').reduce((a: number, b: any) => a + b.nilai, 0);
+      const pot_lain     = empEvents.filter(e => e.tipe === 'pot_lain').reduce((a: number, b: any) => a + b.nilai, 0);
+      const thr          = empEvents.filter(e => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
+      const bonus        = empEvents.filter(e => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
       const benefit_extra = empEvents.filter(e => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
 
       let calcResult: any = {};
       if (emp.jenis_karyawan === 'tetap') {
         calcResult = calculateMonthlySalary({
-          ...emp, bulan: Number(bulan), tahun: Number(tahun),
-          kasbon, alpha_telat, pot_lain: pot_lain + (emp.pot_lain || 0),
-          tunj_lain: emp.tunj_lain + benefit_extra, thr, bonus,
-          pph_jan_nov: 0, akum_bruto: 0,
+          ...emp,
+          bulan: Number(bulan), tahun: Number(tahun),
+          kasbon, alpha_telat,
+          pot_lain: pot_lain + (emp.pot_lain || 0),
+          tunj_lain: emp.tunj_lain + benefit_extra,
+          thr, bonus,
+          pph_jan_nov: (emp as any)._pph_jan_nov ?? 0,
+          akum_bruto:  (emp as any)._akum_bruto  ?? 0,
         });
       } else {
         calcResult = calculateFreelance({
@@ -93,7 +127,8 @@ export default function PayrollRunPage() {
           tunjangan: (emp.tunjangan_tt || 0) + benefit_extra,
           thr, bonus,
           ikut_bpjs_tk: emp.ikut_jht || emp.ikut_jp,
-          ikut_kes: emp.ikut_kes, kasbon, pot_lain: pot_lain + (emp.pot_lain || 0),
+          ikut_kes: emp.ikut_kes,
+          kasbon, pot_lain: pot_lain + (emp.pot_lain || 0),
         });
       }
       return { ...calcResult, employee_id: emp.id, employee_name: emp.nama };
