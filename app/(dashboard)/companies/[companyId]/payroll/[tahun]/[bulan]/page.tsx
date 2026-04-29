@@ -3,20 +3,21 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { ArrowLeft, Calculator, Save, Lock } from 'lucide-react';
+import { ArrowLeft, Calculator, Save, Lock, Printer, Download, AlertTriangle } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { calculateMonthlySalary, calculateFreelance } from '@/lib/engine/payroll';
 import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
+import { printSlipGaji } from '@/lib/export/slip-gaji';
+import { exportSPTMasa } from '@/lib/export/spt-masa';
 
-const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Jun','Jul','Agustus','September','Oktober','November','Desember'];
+const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const sep = '─'.repeat(38);
 
 function CliRow({ label, value, color }: { label: string; value: string; color?: string }) {
-  const c = color ?? 'text-zinc-300';
   return (
     <div className="flex justify-between text-[11px] py-0.5">
-      <span className="text-zinc-600 font-mono">{label.padEnd(22, ' ')}</span>
-      <span className={`font-mono font-bold ${c}`}>{value}</span>
+      <span className="text-zinc-600 font-mono">{label.padEnd(22,' ')}</span>
+      <span className={`font-mono font-bold ${color ?? 'text-zinc-300'}`}>{value}</span>
     </div>
   );
 }
@@ -27,92 +28,83 @@ function CliSep() {
 export default function PayrollRunPage() {
   const { companyId, tahun, bulan } = useParams();
   const [employees, setEmployees] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
+  const [events, setEvents]       = useState<any[]>([]);
   const [existingRun, setExistingRun] = useState<any>(null);
-  const [results, setResults] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [results, setResults]     = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
   const [isCalculated, setIsCalculated] = useState(false);
-  const [company, setCompany] = useState<any>(null);
+  const [company, setCompany]     = useState<any>(null);
 
   useEffect(() => {
     async function fetchData() {
       const supabase = createClient();
       const [{ data: co }, { data: empData }, { data: eventData }, { data: runData }] = await Promise.all([
-        supabase.from('companies').select('name').eq('id', companyId).single(),
+        supabase.from('companies').select('name, npwp_perusahaan').eq('id', companyId).single(),
         supabase.from('employees').select('*').eq('company_id', companyId).eq('aktif', true),
         supabase.from('employee_events').select('*').eq('company_id', companyId).eq('tahun', tahun).eq('bulan', bulan),
         supabase.from('payroll_runs').select('*, payroll_results(*)').eq('company_id', companyId)
           .eq('tahun', tahun).eq('bulan', bulan).maybeSingle(),
       ]);
 
-      // Fetch Jan-Nov accumulation for December equalization
+      // Fetch Jan-Nov accumulation for December
       let accumMap: Record<string, { akum_bruto: number; pph_jan_nov: number }> = {};
       if (Number(bulan) === 12 && empData) {
         const { data: prevRuns } = await supabase
-          .from('payroll_runs')
-          .select('id, bulan')
-          .eq('company_id', companyId)
-          .eq('tahun', tahun)
-          .neq('bulan', 12);
-
+          .from('payroll_runs').select('id, bulan')
+          .eq('company_id', companyId).eq('tahun', tahun).neq('bulan', 12);
         if (prevRuns && prevRuns.length > 0) {
-          const prevRunIds = prevRuns.map(r => r.id);
           const { data: prevResults } = await supabase
-            .from('payroll_results')
-            .select('employee_id, bruto, pph')
-            .in('run_id', prevRunIds);
-
+            .from('payroll_results').select('employee_id, bruto, pph')
+            .in('run_id', prevRuns.map(r => r.id));
           for (const r of prevResults ?? []) {
             if (!accumMap[r.employee_id]) accumMap[r.employee_id] = { akum_bruto: 0, pph_jan_nov: 0 };
-            accumMap[r.employee_id].akum_bruto += r.bruto ?? 0;
-            accumMap[r.employee_id].pph_jan_nov += r.pph ?? 0;
+            accumMap[r.employee_id].akum_bruto  += r.bruto ?? 0;
+            accumMap[r.employee_id].pph_jan_nov += r.pph   ?? 0;
           }
         }
       }
 
-    if (co) setCompany(co);
-    if (empData) setEmployees(empData.map(emp => ({
-      ...emp,
-      _akum_bruto:   accumMap[emp.id]?.akum_bruto   ?? 0,
-      _pph_jan_nov:  accumMap[emp.id]?.pph_jan_nov  ?? 0,
-    })));
-    if (eventData) setEvents(eventData);
-    if (runData) {
-      setExistingRun(runData);
-      if (runData.payroll_results?.length > 0) {
-        const mapped = runData.payroll_results.map((r: any) => ({
-          ...r.result_json,
-          employee_id: r.employee_id,
-          employee_name: empData?.find(e => e.id === r.employee_id)?.nama,
-          _db: r,
-        }));
-        setResults(mapped);
-        setIsCalculated(true);
+      if (co) setCompany(co);
+      if (empData) setEmployees(empData.map(emp => ({
+        ...emp,
+        _akum_bruto:  accumMap[emp.id]?.akum_bruto  ?? 0,
+        _pph_jan_nov: accumMap[emp.id]?.pph_jan_nov ?? 0,
+      })));
+      if (eventData) setEvents(eventData);
+      if (runData) {
+        setExistingRun(runData);
+        if (runData.payroll_results?.length > 0) {
+          const mapped = runData.payroll_results.map((r: any) => ({
+            ...r.result_json,
+            employee_id:   r.employee_id,
+            employee_name: empData?.find(e => e.id === r.employee_id)?.nama,
+          }));
+          setResults(mapped);
+          setIsCalculated(true);
+        }
       }
+      setLoading(false);
     }
-    setLoading(false);
-  }
-  fetchData();
-}, [companyId, tahun, bulan]);
+    fetchData();
+  }, [companyId, tahun, bulan]);
 
   function handleCalculate() {
     const newResults = employees.map(emp => {
-      const empEvents = events.filter(e => e.employee_id === emp.id);
-      const kasbon       = empEvents.filter(e => e.tipe === 'kasbon').reduce((a: number, b: any) => a + b.nilai, 0);
-      const alpha_telat  = empEvents.filter(e => e.tipe === 'alpha_telat').reduce((a: number, b: any) => a + b.nilai, 0);
-      const pot_lain     = empEvents.filter(e => e.tipe === 'pot_lain').reduce((a: number, b: any) => a + b.nilai, 0);
-      const thr          = empEvents.filter(e => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
-      const bonus        = empEvents.filter(e => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
+      const empEvents     = events.filter(e => e.employee_id === emp.id);
+      const kasbon        = empEvents.filter(e => e.tipe === 'kasbon').reduce((a: number, b: any) => a + b.nilai, 0);
+      const alpha_telat   = empEvents.filter(e => e.tipe === 'alpha_telat').reduce((a: number, b: any) => a + b.nilai, 0);
+      const pot_lain      = empEvents.filter(e => e.tipe === 'pot_lain').reduce((a: number, b: any) => a + b.nilai, 0);
+      const thr           = empEvents.filter(e => e.tipe === 'thr').reduce((a: number, b: any) => a + b.nilai, 0);
+      const bonus         = empEvents.filter(e => e.tipe === 'bonus').reduce((a: number, b: any) => a + b.nilai, 0);
       const benefit_extra = empEvents.filter(e => e.tipe === 'benefit_extra').reduce((a: number, b: any) => a + b.nilai, 0);
 
       let calcResult: any = {};
       if (emp.jenis_karyawan === 'tetap') {
         calcResult = calculateMonthlySalary({
-          ...emp,
-          bulan: Number(bulan), tahun: Number(tahun),
+          ...emp, bulan: Number(bulan), tahun: Number(tahun),
           kasbon, alpha_telat,
-          pot_lain: pot_lain + (emp.pot_lain || 0),
+          pot_lain:  pot_lain + (emp.pot_lain || 0),
           tunj_lain: emp.tunj_lain + benefit_extra,
           thr, bonus,
           pph_jan_nov: (emp as any)._pph_jan_nov ?? 0,
@@ -121,14 +113,16 @@ export default function PayrollRunPage() {
       } else {
         calcResult = calculateFreelance({
           ...emp,
-          mode: emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan',
-          upah_harian: emp.upah_harian, hari_kerja: emp.hari_kerja_default || 22,
+          mode:        emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan',
+          upah_harian: emp.upah_harian,
+          hari_kerja:  emp.hari_kerja_default || 22,
           upah_bulanan: emp.upah_bulanan_tt,
-          tunjangan: (emp.tunjangan_tt || 0) + benefit_extra,
+          tunjangan:   (emp.tunjangan_tt || 0) + benefit_extra,
           thr, bonus,
           ikut_bpjs_tk: emp.ikut_jht || emp.ikut_jp,
-          ikut_kes: emp.ikut_kes,
-          kasbon, pot_lain: pot_lain + (emp.pot_lain || 0),
+          ikut_kes:    emp.ikut_kes,
+          kasbon,
+          pot_lain:    pot_lain + (emp.pot_lain || 0),
         });
       }
       return { ...calcResult, employee_id: emp.id, employee_name: emp.nama };
@@ -157,11 +151,12 @@ export default function PayrollRunPage() {
 
   if (loading) return <div className="h-64 bg-[#111113] border border-[#1A1A1C] rounded-lg animate-pulse" />;
 
-  const isLocked = existingRun?.status === 'locked';
-  const totalBruto = results.reduce((a, r) => a + (r.bruto || r.total_upah || 0), 0);
-  const totalPph = results.reduce((a, r) => a + (r.pph || r.total_pph || 0), 0);
-  const totalThp = results.reduce((a, r) => a + (r.thp || 0), 0);
-  const totalCtc = results.reduce((a, r) => a + (r.bruto || r.total_upah || 0) + (r.bpjs?.employer_offslip || 0), 0);
+  const isLocked     = existingRun?.status === 'locked';
+  const isDesember   = Number(bulan) === 12;
+  const totalBruto   = results.reduce((a, r) => a + (r.bruto || r.total_upah || 0), 0);
+  const totalPph     = results.reduce((a, r) => a + (r.pph || r.total_pph || 0), 0);
+  const totalThp     = results.reduce((a, r) => a + (r.thp || 0), 0);
+  const totalCtc     = results.reduce((a, r) => a + (r.bruto || r.total_upah || 0) + (r.bpjs?.employer_offslip || 0), 0);
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -173,13 +168,11 @@ export default function PayrollRunPage() {
             <ArrowLeft size={15} />
           </Link>
           <div>
-            <h1 className="text-xl font-bold text-zinc-100">
-              {BULAN_NAMES[Number(bulan) - 1]} {tahun}
-            </h1>
+            <h1 className="text-xl font-bold text-zinc-100">{BULAN_NAMES[Number(bulan)-1]} {tahun}</h1>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-[11px] text-zinc-600">{company?.name ?? '—'}</p>
               <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                existingRun?.status === 'locked' ? 'bg-green-900/25 text-green-400' :
+                existingRun?.status === 'locked'     ? 'bg-green-900/25 text-green-400' :
                 existingRun?.status === 'calculated' ? 'bg-sky-900/25 text-sky-400' :
                 'bg-zinc-800 text-zinc-600'
               }`}>{existingRun?.status ?? 'draft'}</span>
@@ -188,6 +181,14 @@ export default function PayrollRunPage() {
         </div>
 
         <div className="flex gap-2">
+          {isCalculated && (
+            <button
+              onClick={() => exportSPTMasa(results, company, employees, Number(bulan), Number(tahun))}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-[#D4AF37] hover:border-[#D4AF37]/30 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
+              <Download size={13} />
+              Export SPT
+            </button>
+          )}
           {!isLocked && (
             <button onClick={handleCalculate}
               className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
@@ -212,14 +213,14 @@ export default function PayrollRunPage() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary cards */}
       {isCalculated && (
         <div className="grid grid-cols-4 gap-3">
           {[
-            { label: 'Total Bruto', value: formatRupiah(totalBruto), color: 'text-zinc-100' },
-            { label: 'Total PPh 21', value: formatRupiah(totalPph), color: 'text-amber-400' },
-            { label: 'Total THP', value: formatRupiah(totalThp), color: 'text-green-400' },
-            { label: 'Total CTC', value: formatRupiah(totalCtc), color: 'text-sky-400' },
+            { label: 'Total Bruto',  value: formatRupiah(totalBruto), color: 'text-zinc-100' },
+            { label: 'Total PPh 21', value: formatRupiah(totalPph),   color: 'text-amber-400' },
+            { label: 'Total THP',    value: formatRupiah(totalThp),   color: 'text-green-400' },
+            { label: 'Total CTC',    value: formatRupiah(totalCtc),   color: 'text-sky-400' },
           ].map(s => (
             <div key={s.label} className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-4">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">{s.label}</p>
@@ -229,11 +230,26 @@ export default function PayrollRunPage() {
         </div>
       )}
 
+      {/* December Equalization Warning */}
+      {isDesember && isCalculated && (
+        <div className="bg-[#1A1200] border border-amber-800/40 rounded-lg px-5 py-4 flex items-start gap-3 animate-fade-in">
+          <AlertTriangle size={15} className="text-amber-400 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-xs font-bold text-amber-300 uppercase tracking-widest mb-1">Equalisasi Desember</p>
+            <p className="text-[11px] text-amber-500 font-mono leading-relaxed">
+              Equalisasi Desember akan menghasilkan PPh{' '}
+              <span className="text-amber-300 font-bold">{formatRupiah(totalPph)}</span>
+              {' '}untuk {results.length} karyawan menggunakan metode Pasal 17 tahunan.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* CLI Results */}
       {!isCalculated ? (
         <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-16 text-center">
           <Calculator size={32} className="mx-auto text-zinc-700 mb-4" />
-          <p className="text-sm text-zinc-500 mb-2">Belum dihitung</p>
+          <p className="text-sm text-zinc-500 mb-1">Belum dihitung</p>
           <p className="text-xs text-zinc-700 mb-6">{employees.length} karyawan aktif siap diproses</p>
           <button onClick={handleCalculate}
             className="px-8 py-3 bg-[#D4AF37] text-[#0A0A0B] rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
@@ -243,46 +259,57 @@ export default function PayrollRunPage() {
       ) : (
         <div className="space-y-3">
           {results.map((res, i) => {
-            const isTetap = !res.mode || res.mode === undefined || res.mode === 'tetap';
-            const bpjsK = res.bpjs?.karyawan_potong ?? res.tot_bpjs ?? 0;
+            const isTetap = !res.mode || res.mode === undefined;
+            const bpjsK   = res.bpjs?.karyawan_potong ?? res.tot_bpjs ?? 0;
             const bpjsEmp = res.bpjs?.employer_total ?? 0;
-            const ctc = (res.bruto || res.total_upah || 0) + (res.bpjs?.employer_offslip ?? 0);
+            const ctc     = (res.bruto || res.total_upah || 0) + (res.bpjs?.employer_offslip ?? 0);
+
             return (
-              <div key={i} className="bg-[#080809] border border-[#1A1A1C] rounded-lg overflow-hidden font-mono">
+              <div key={i} className="bg-[#080809] border border-[#1A1A1C] rounded-lg overflow-hidden font-mono animate-fade-in-up"
+                style={{ animationDelay: `${i * 0.04}s`, opacity: 0 }}>
                 {/* Employee header */}
                 <div className="px-5 py-3 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <span className="text-[#D4AF37] text-sm">$</span>
                     <span className="text-sm font-bold text-zinc-200 uppercase tracking-wide">{res.employee_name}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px]">
-                    <span className="text-zinc-600">{res.mode ? res.mode.toUpperCase() : 'TETAP'}</span>
-                    <span className="text-zinc-800">·</span>
-                    <span className="text-zinc-600">{res.status_ptkp ?? '—'}</span>
-                    <span className="text-zinc-800">·</span>
-                    <span className={res.punya_npwp !== false ? 'text-green-500' : 'text-red-500'}>
-                      {res.punya_npwp !== false ? 'NPWP ✓' : 'NO NPWP +20%'}
-                    </span>
-                    {res.pph_ditanggung && <>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 text-[10px]">
+                      <span className="text-zinc-600">{res.mode ? res.mode.toUpperCase() : 'TETAP'}</span>
                       <span className="text-zinc-800">·</span>
-                      <span className="text-amber-400">GROSSUP</span>
-                    </>}
+                      <span className="text-zinc-600">{res.status_ptkp ?? '—'}</span>
+                      <span className="text-zinc-800">·</span>
+                      <span className={res.punya_npwp !== false ? 'text-green-500' : 'text-red-500'}>
+                        {res.punya_npwp !== false ? 'NPWP ✓' : 'NO NPWP +20%'}
+                      </span>
+                      {res.pph_ditanggung && <>
+                        <span className="text-zinc-800">·</span>
+                        <span className="text-amber-400">GROSSUP</span>
+                      </>}
+                    </div>
+                    {/* Print slip button */}
+                    <button
+                      onClick={() => printSlipGaji(res, company, Number(bulan), Number(tahun))}
+                      title="Cetak Slip Gaji"
+                      className="p-1.5 text-zinc-700 hover:text-[#D4AF37] transition-colors border border-transparent hover:border-[#D4AF37]/30 rounded">
+                      <Printer size={12} />
+                    </button>
                   </div>
                 </div>
 
                 <div className="px-5 py-4 space-y-0">
                   {isTetap ? (
                     <>
-                      <CliRow label="gaji_pokok" value={formatRupiah(res.gaji_pokok ?? 0)} />
+                      <CliRow label="gaji_pokok"      value={formatRupiah(res.gaji_pokok ?? 0)} />
                       {(res.allowance_total ?? 0) > 0 && <CliRow label="tunjangan_total" value={formatRupiah(res.allowance_total)} />}
                       <CliSep />
-                      <CliRow label="bruto" value={formatRupiah(res.bruto ?? 0)} color="text-zinc-100" />
-                      <CliRow label="ter_rate" value={res.ter != null ? `${(res.ter * 100).toFixed(2)}%` : 'Pasal 17 ✓'} />
-                      <CliRow label="pph21" value={formatRupiah(res.pph ?? 0)} color="text-amber-400" />
+                      <CliRow label="bruto"           value={formatRupiah(res.bruto ?? 0)}      color="text-zinc-100" />
+                      <CliRow label="ter_rate"        value={res.ter != null ? `${(res.ter * 100).toFixed(2)}%` : 'Pasal 17 ✓'} />
+                      <CliRow label="pph21"           value={formatRupiah(res.pph ?? 0)}        color="text-amber-400" />
                       {res.pph_ditanggung && <CliRow label="tunj_pph (co.)" value={formatRupiah(res.tunj_pph ?? 0)} color="text-amber-300" />}
                       {bpjsK > 0 && <>
                         <CliSep />
-                        <CliRow label="bpjs_karyawan" value={formatRupiah(bpjsK)} color="text-zinc-500" />
+                        <CliRow label="bpjs_karyawan" value={formatRupiah(bpjsK)}              color="text-zinc-500" />
                         {bpjsEmp > 0 && <CliRow label="bpjs_employer" value={formatRupiah(bpjsEmp)} color="text-zinc-700" />}
                       </>}
                       {(res.thr_nominal > 0 || res.bonus_nominal > 0) && <>
@@ -308,13 +335,13 @@ export default function PayrollRunPage() {
                   ) : (
                     <>
                       <CliRow label="total_upah" value={formatRupiah(res.total_upah ?? 0)} color="text-zinc-100" />
-                      <CliRow label="pph21" value={formatRupiah(res.total_pph ?? 0)} color="text-amber-400" />
+                      <CliRow label="pph21"      value={formatRupiah(res.total_pph ?? 0)} color="text-amber-400" />
                       {bpjsK > 0 && <CliRow label="bpjs_karyawan" value={formatRupiah(bpjsK)} color="text-zinc-500" />}
                     </>
                   )}
                   <CliSep />
                   <CliRow label="THP" value={formatRupiah(res.thp ?? 0)} color="text-green-400" />
-                  <CliRow label="CTC" value={formatRupiah(ctc)} color="text-sky-400" />
+                  <CliRow label="CTC" value={formatRupiah(ctc)}          color="text-sky-400" />
                 </div>
               </div>
             );
