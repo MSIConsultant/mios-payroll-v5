@@ -5,13 +5,18 @@ import { createCompany } from '@/lib/actions/companies';
 import { useWorkspace } from '@/hooks/useWorkspace';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
+import { NpwpInput } from '@/components/ui/FormattedInput';
+import { toast } from 'sonner';
 
-function Field({ label, name, placeholder, required }: { label: string; name: string; placeholder?: string; required?: boolean }) {
+function TF({ label, name, placeholder, required }: { label: string; name: string; placeholder?: string; required?: boolean }) {
+  const [focused, setFocused] = useState(false);
   return (
     <div>
-      <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">{label}</label>
+      <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{label}</label>
       <input name={name} type="text" required={required} placeholder={placeholder}
-        className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#D4AF37]/40 transition-colors" />
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none transition-colors font-mono"
+        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
     </div>
   );
 }
@@ -20,14 +25,18 @@ export default function NewCompanyPage() {
   const router = useRouter();
   const { workspace } = useWorkspace();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(formData: FormData) {
     if (!workspace) return;
-    setLoading(true); setError(null);
+    setLoading(true);
     const result = await createCompany(formData);
-    if (result.error) { setError(result.error); setLoading(false); }
-    else router.push('/companies');
+    if (result.error) {
+      toast.error(result.error);
+      setLoading(false);
+    } else {
+      toast.success('Perusahaan berhasil dibuat');
+      router.push('/companies');
+    }
   }
 
   return (
@@ -45,21 +54,18 @@ export default function NewCompanyPage() {
 
       <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-6">
         <form action={handleSubmit} className="space-y-5">
-          {error && <div className="p-3 bg-red-900/20 border border-red-800/30 rounded text-xs text-red-400 font-mono">{error}</div>}
           <input type="hidden" name="workspace_id" value={workspace?.id ?? ''} />
-
-          <Field label="Nama Perusahaan *" name="name" placeholder="PT Bangun Jaya Abadi" required />
+          <TF label="Nama Perusahaan *" name="name" placeholder="PT Bangun Jaya Abadi" required />
           <div className="grid grid-cols-2 gap-4">
-            <Field label="NPWP Perusahaan" name="npwp_perusahaan" placeholder="00.000.000.0-000.000" />
-            <Field label="Industri" name="industri" placeholder="Manufaktur" />
-            <Field label="Kota" name="kota" placeholder="Jakarta Selatan" />
+            <NpwpInput label="NPWP Perusahaan" name="npwp_perusahaan" />
+            <TF label="Industri" name="industri" placeholder="Manufaktur" />
+            <TF label="Kota"     name="kota"     placeholder="Jakarta Selatan" />
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-2">Alamat</label>
+            <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Alamat</label>
             <textarea name="alamat" rows={2} placeholder="Alamat lengkap kantor..."
-              className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#D4AF37]/40 transition-colors resize-none" />
+              className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 placeholder:text-zinc-700 outline-none focus:border-[#D4AF37]/40 transition-colors resize-none font-mono" />
           </div>
-
           <div className="flex justify-end gap-3 pt-2">
             <Link href="/companies" className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</Link>
             <button type="submit" disabled={loading || !workspace}
