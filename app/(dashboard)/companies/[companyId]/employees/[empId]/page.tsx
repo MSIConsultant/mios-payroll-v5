@@ -4,18 +4,48 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Employee, EmployeeEvent } from '@/lib/types';
-import { ArrowLeft, Edit2, Trash2, X, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Edit2, Trash2, X, Plus, Save, PowerOff, Power } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { addEvent, deleteEvent, deleteEmployee, updateEmployee } from '@/lib/actions/employees';
+import { NpwpInput, NikInput, NominalInput } from '@/components/ui/FormattedInput';
+import { toast } from 'sonner';
 
 const BULAN_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
-function Row({ label, value, highlight }: { label: string; value: string; highlight?: 'green' | 'amber' | 'red' | 'default' }) {
+function Row({ label, value, highlight }: { label: string; value: string; highlight?: 'green'|'amber'|'red'|'default' }) {
   const colors = { green: 'text-green-400', amber: 'text-amber-400', red: 'text-red-400', default: 'text-zinc-300' };
   return (
-    <div className="flex items-center justify-between py-1.5 border-b border-[#131315] last:border-0">
+    <div className="flex items-center justify-between py-2 border-b border-[#131315] last:border-0">
       <span className="text-[11px] text-zinc-600 font-mono">{label}</span>
-      <span className={`text-[11px] font-bold font-mono ${colors[highlight ?? 'default']}`}>{value}</span>
+      <span className={`text-sm font-bold font-mono ${colors[highlight ?? 'default']}`}>{value}</span>
+    </div>
+  );
+}
+
+function SF({ label, name, children, defaultValue }: { label: string; name: string; children: React.ReactNode; defaultValue?: string }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{label}</label>
+      <select name={name} defaultValue={defaultValue}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 outline-none transition-colors"
+        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }}>
+        {children}
+      </select>
+    </div>
+  );
+}
+
+function TF({ label, name, defaultValue }: { label: string; name: string; defaultValue?: string }) {
+  const [focused, setFocused] = useState(false);
+  return (
+    <div>
+      <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{label}</label>
+      <input name={name} type="text" defaultValue={defaultValue}
+        onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+        className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 outline-none transition-colors font-mono"
+        style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
     </div>
   );
 }
@@ -23,15 +53,16 @@ function Row({ label, value, highlight }: { label: string; value: string; highli
 export default function EmployeeDetailPage() {
   const { companyId, empId } = useParams();
   const router = useRouter();
-  const [employee, setEmployee] = useState<Employee | null>(null);
-  const [events, setEvents] = useState<EmployeeEvent[]>([]);
+  const [employee, setEmployee]         = useState<Employee | null>(null);
+  const [events, setEvents]             = useState<EmployeeEvent[]>([]);
   const [payrollHistory, setPayrollHistory] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('profil');
+  const [loading, setLoading]           = useState(true);
+  const [activeTab, setActiveTab]       = useState('profil');
   const [showEventModal, setShowEventModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [showEditModal, setShowEditModal]   = useState(false);
+  const [isDeleting, setIsDeleting]     = useState(false);
+  const [isSaving, setIsSaving]         = useState(false);
+  const [isToggling, setIsToggling]     = useState(false);
 
   async function loadEvents() {
     const supabase = createClient();
@@ -47,7 +78,8 @@ export default function EmployeeDetailPage() {
         supabase.from('employees').select('*').eq('id', empId).single(),
         supabase.from('employee_events').select('*').eq('employee_id', empId)
           .order('tahun', { ascending: false }).order('bulan', { ascending: false }),
-        supabase.from('payroll_results').select('*, payroll_runs(tahun, bulan, status)')
+        supabase.from('payroll_results')
+          .select('*, payroll_runs(tahun, bulan, status)')
           .eq('employee_id', empId).order('calculated_at', { ascending: false }).limit(24),
       ]);
       if (emp) setEmployee(emp);
@@ -58,47 +90,71 @@ export default function EmployeeDetailPage() {
     if (empId) fetchData();
   }, [empId]);
 
+  async function handleToggleActive() {
+    if (!employee) return;
+    const action = employee.aktif ? 'menonaktifkan' : 'mengaktifkan';
+    if (!confirm(`Yakin ingin ${action} karyawan ini?`)) return;
+    setIsToggling(true);
+    const supabase = createClient();
+    const { error } = await supabase.from('employees')
+      .update({ aktif: !employee.aktif }).eq('id', empId);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success(employee.aktif ? 'Karyawan dinonaktifkan' : 'Karyawan diaktifkan');
+      setEmployee(e => e ? { ...e, aktif: !e.aktif } : e);
+    }
+    setIsToggling(false);
+  }
+
   async function handleDeleteEmployee() {
     if (!confirm('Hapus karyawan ini? Semua riwayat akan hilang.')) return;
     setIsDeleting(true);
     const res = await deleteEmployee(empId as string, companyId as string);
-    if (res.error) { alert(res.error); setIsDeleting(false); }
-    else router.push(`/companies/${companyId}`);
+    if (res.error) {
+      toast.error(res.error);
+      setIsDeleting(false);
+    } else {
+      toast.success('Karyawan dihapus');
+      router.push(`/companies/${companyId}`);
+    }
   }
 
   async function handleAddEvent(formData: FormData) {
     const res = await addEvent(formData);
-    if (res.error) alert(res.error);
-    else { setShowEventModal(false); await loadEvents(); }
+    if (res.error) toast.error(res.error);
+    else { toast.success('Variasi ditambahkan'); setShowEventModal(false); await loadEvents(); }
   }
 
   async function handleDeleteEvent(id: string) {
     if (!confirm('Hapus event ini?')) return;
     const res = await deleteEvent(id, companyId as string, empId as string);
-    if (res.error) alert(res.error);
-    else setEvents(events.filter(e => e.id !== id));
+    if (res.error) toast.error(res.error);
+    else { toast.success('Variasi dihapus'); setEvents(events.filter(e => e.id !== id)); }
   }
 
   async function handleUpdateEmployee(formData: FormData) {
     setIsSaving(true);
     const res = await updateEmployee(empId as string, companyId as string, formData);
-    if (res.error) { alert(res.error); setIsSaving(false); }
-    else {
+    if (res.error) {
+      toast.error(res.error);
+    } else {
+      toast.success('Profil karyawan diperbarui');
       setShowEditModal(false);
       const supabase = createClient();
       const { data } = await supabase.from('employees').select('*').eq('id', empId).single();
       if (data) setEmployee(data);
-      setIsSaving(false);
     }
+    setIsSaving(false);
   }
 
   if (loading) return <div className="h-64 bg-[#111113] border border-[#1A1A1C] rounded-lg animate-pulse" />;
   if (!employee) return <div className="text-zinc-600 text-sm">Karyawan tidak ditemukan.</div>;
 
   const tabs = [
-    { id: 'profil', label: 'Profil' },
-    { id: 'events', label: 'Variasi' },
-    { id: 'riwayat', label: 'Riwayat Payroll' },
+    { id: 'profil',   label: 'Profil' },
+    { id: 'events',   label: 'Variasi' },
+    { id: 'riwayat',  label: 'Riwayat Payroll' },
   ];
 
   return (
@@ -112,15 +168,27 @@ export default function EmployeeDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold text-zinc-100">{employee.nama}</h1>
+              <h1 className="text-2xl font-bold text-zinc-100">{employee.nama}</h1>
               <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest border ${
-                employee.aktif ? 'bg-green-900/25 text-green-400 border-green-900/40' : 'bg-zinc-800 text-zinc-600 border-zinc-700'
+                employee.aktif
+                  ? 'bg-green-900/25 text-green-400 border-green-900/40'
+                  : 'bg-zinc-800 text-zinc-500 border-zinc-700'
               }`}>{employee.aktif ? 'Aktif' : 'Non-Aktif'}</span>
             </div>
             <p className="text-[11px] text-zinc-600 mt-0.5">{employee.jabatan ?? '—'} · {employee.divisi ?? '—'}</p>
           </div>
         </div>
         <div className="flex gap-2">
+          <button onClick={handleToggleActive} disabled={isToggling}
+            title={employee.aktif ? 'Nonaktifkan karyawan' : 'Aktifkan karyawan'}
+            className={`inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border rounded-lg text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50 ${
+              employee.aktif
+                ? 'border-amber-900/40 text-amber-500/70 hover:text-amber-400 hover:border-amber-800/60'
+                : 'border-green-900/40 text-green-500/70 hover:text-green-400 hover:border-green-800/60'
+            }`}>
+            {employee.aktif ? <PowerOff size={13} /> : <Power size={13} />}
+            {employee.aktif ? 'Nonaktifkan' : 'Aktifkan'}
+          </button>
           <button onClick={handleDeleteEmployee} disabled={isDeleting}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-red-900/30 text-red-500/70 hover:text-red-400 hover:border-red-800/50 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors disabled:opacity-50">
             <Trash2 size={13} />
@@ -144,48 +212,63 @@ export default function EmployeeDetailPage() {
         ))}
       </div>
 
-      {/* Tab: Profil */}
+      {/* PROFIL TAB */}
       {activeTab === 'profil' && (
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Identitas</p>
-            <Row label="NIK" value={employee.nik} />
-            <Row label="NPWP" value={employee.npwp ?? 'Belum Terdaftar'} />
-            <Row label="Status PTKP" value={employee.status_ptkp} />
-            <Row label="NPWP Valid" value={employee.punya_npwp ? 'Ya' : 'Tidak (+20%)'} highlight={employee.punya_npwp ? 'green' : 'red'} />
-            <Row label="Tanggal Masuk" value={employee.tanggal_masuk ? new Date(employee.tanggal_masuk).toLocaleDateString('id-ID') : '—'} />
+          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">Identitas</p>
+            <Row label="NIK"          value={employee.nik} />
+            <Row label="NPWP"         value={employee.npwp ?? 'Belum Terdaftar'} />
+            <Row label="Status PTKP"  value={employee.status_ptkp} />
+            <Row label="NPWP Valid"   value={employee.punya_npwp ? 'Ya' : 'Tidak (+20%)'}
+              highlight={employee.punya_npwp ? 'green' : 'red'} />
+            <Row label="Tanggal Masuk"
+              value={employee.tanggal_masuk ? new Date(employee.tanggal_masuk).toLocaleDateString('id-ID') : '—'} />
           </div>
 
-          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">Kompensasi</p>
-            <Row label="gaji_pokok" value={formatRupiah(employee.gaji_pokok)} highlight="green" />
-            {employee.benefit > 0 && <Row label="benefit" value={formatRupiah(employee.benefit)} />}
-            {employee.kendaraan > 0 && <Row label="kendaraan" value={formatRupiah(employee.kendaraan)} />}
-            {employee.pulsa > 0 && <Row label="pulsa" value={formatRupiah(employee.pulsa)} />}
+          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">Kompensasi</p>
+            <Row label="gaji_pokok"  value={formatRupiah(employee.gaji_pokok)} highlight="green" />
+            {employee.benefit > 0    && <Row label="benefit"    value={formatRupiah(employee.benefit)} />}
+            {employee.kendaraan > 0  && <Row label="kendaraan"  value={formatRupiah(employee.kendaraan)} />}
+            {employee.pulsa > 0      && <Row label="pulsa"      value={formatRupiah(employee.pulsa)} />}
             {employee.operasional > 0 && <Row label="operasional" value={formatRupiah(employee.operasional)} />}
-            {employee.tunj_lain > 0 && <Row label="tunj_lain" value={formatRupiah(employee.tunj_lain)} />}
+            {employee.tunj_lain > 0  && <Row label="tunj_lain" value={formatRupiah(employee.tunj_lain)} />}
+            {/* Total */}
+            <div className="mt-3 pt-3 border-t border-[#1A1A1C]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-zinc-600 font-mono uppercase tracking-widest">Est. Total Bruto</span>
+                <span className="text-xl font-bold text-[#D4AF37] font-mono">
+                  {formatRupiah(
+                    employee.gaji_pokok + (employee.benefit ?? 0) + (employee.kendaraan ?? 0) +
+                    (employee.pulsa ?? 0) + (employee.operasional ?? 0) + (employee.tunj_lain ?? 0)
+                  )}
+                </span>
+              </div>
+            </div>
           </div>
 
-          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">BPJS</p>
-            <Row label="JHT" value={employee.ikut_jht ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jht ? 'green' : 'default'} />
-            <Row label="JP" value={employee.ikut_jp ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jp ? 'green' : 'default'} />
-            <Row label="JKP" value={employee.ikut_jkp ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jkp ? 'green' : 'default'} />
+          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">BPJS</p>
+            <Row label="JHT"      value={employee.ikut_jht ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jht ? 'green' : 'default'} />
+            <Row label="JP"       value={employee.ikut_jp ? 'Ikut' : 'Tidak'}  highlight={employee.ikut_jp ? 'green' : 'default'} />
+            <Row label="JKP"      value={employee.ikut_jkp ? 'Ikut' : 'Tidak'} highlight={employee.ikut_jkp ? 'green' : 'default'} />
             <Row label="JKK Rate" value={`${(employee.jkk_rate * 100).toFixed(2)}%`} />
             <Row label="Kesehatan" value={employee.ikut_kes ? 'Ikut' : 'Tidak'} highlight={employee.ikut_kes ? 'green' : 'default'} />
           </div>
 
-          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5 space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">PPh 21</p>
-            <Row label="Skema" value={employee.pph_ditanggung ? 'GROSSUP' : 'DIPOTONG'} highlight={employee.pph_ditanggung ? 'amber' : 'default'} />
-            <Row label="Tipe Karyawan" value={employee.jenis_karyawan.replace(/_/g, ' ').toUpperCase()} />
-            {employee.upah_harian && <Row label="Upah Harian" value={formatRupiah(employee.upah_harian)} />}
+          <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">PPh 21</p>
+            <Row label="Skema"         value={employee.pph_ditanggung ? 'GROSSUP' : 'DIPOTONG'}
+              highlight={employee.pph_ditanggung ? 'amber' : 'default'} />
+            <Row label="Tipe Karyawan" value={employee.jenis_karyawan.replace(/_/g,' ').toUpperCase()} />
+            {employee.upah_harian     && <Row label="Upah Harian"        value={formatRupiah(employee.upah_harian)} />}
             {employee.hari_kerja_default && <Row label="Hari Kerja Default" value={`${employee.hari_kerja_default} hari`} />}
           </div>
         </div>
       )}
 
-      {/* Tab: Events */}
+      {/* EVENTS TAB */}
       {activeTab === 'events' && (
         <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg overflow-hidden">
           <div className="px-5 py-3.5 border-b border-[#1A1A1C] flex items-center justify-between">
@@ -211,18 +294,21 @@ export default function EmployeeDetailPage() {
                 <tr><td colSpan={5} className="px-5 py-10 text-center text-zinc-700">Belum ada variasi</td></tr>
               ) : events.map(ev => (
                 <tr key={ev.id} className="border-b border-[#131315] hover:bg-[#131315] transition-colors">
-                  <td className="px-5 py-3 text-zinc-400">{BULAN_NAMES[ev.bulan - 1]} {ev.tahun}</td>
+                  <td className="px-5 py-3 text-zinc-400">{BULAN_NAMES[ev.bulan-1]} {ev.tahun}</td>
                   <td className="px-5 py-3">
                     <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
                       ['thr','bonus'].includes(ev.tipe) ? 'bg-amber-900/25 text-amber-400' :
                       ['alpha_telat','kasbon','pot_lain'].includes(ev.tipe) ? 'bg-red-900/25 text-red-400' :
                       'bg-sky-900/25 text-sky-400'
-                    }`}>{ev.tipe.replace(/_/g, ' ')}</span>
+                    }`}>{ev.tipe.replace(/_/g,' ')}</span>
                   </td>
-                  <td className="px-5 py-3 text-right text-zinc-300">{formatRupiah(ev.nilai)}</td>
+                  <td className="px-5 py-3 text-right">
+                    <span className="text-base font-bold text-zinc-300">{formatRupiah(ev.nilai)}</span>
+                  </td>
                   <td className="px-5 py-3 text-zinc-600">{ev.keterangan ?? '—'}</td>
                   <td className="px-4 py-3 text-right">
-                    <button onClick={() => handleDeleteEvent(ev.id)} className="text-zinc-700 hover:text-red-400 transition-colors">
+                    <button onClick={() => handleDeleteEvent(ev.id)}
+                      className="text-zinc-700 hover:text-red-400 transition-colors">
                       <Trash2 size={13} />
                     </button>
                   </td>
@@ -233,7 +319,7 @@ export default function EmployeeDetailPage() {
         </div>
       )}
 
-      {/* Tab: Riwayat */}
+      {/* RIWAYAT TAB */}
       {activeTab === 'riwayat' && (
         <div className="bg-[#080809] border border-[#1A1A1C] rounded-lg overflow-hidden font-mono">
           <div className="px-4 py-2 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center gap-1.5">
@@ -244,98 +330,77 @@ export default function EmployeeDetailPage() {
           </div>
           {payrollHistory.length === 0 ? (
             <div className="px-5 py-10 text-xs text-zinc-700">$ Belum ada riwayat payroll.</div>
-          ) : (
-            <div>
-              {payrollHistory.map((h, i) => {
-                const run = h.payroll_runs;
-                return (
-                  <Link key={h.id}
-                    href={`/companies/${companyId}/payroll/${run?.tahun}/${run?.bulan}`}
-                    className={`block px-5 py-4 hover:bg-[#0F0F11] transition-colors ${i < payrollHistory.length - 1 ? 'border-b border-[#131315]' : ''}`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs text-zinc-300">
-                        <span className="text-[#D4AF37]">$</span>{' '}
-                        <span className="font-bold">{run ? `${BULAN_NAMES[run.bulan - 1]} ${run.tahun}` : '—'}</span>
-                      </span>
-                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
-                        run?.status === 'locked' ? 'bg-green-900/30 text-green-500' :
-                        run?.status === 'calculated' ? 'bg-sky-900/30 text-sky-400' : 'bg-zinc-800 text-zinc-600'
-                      }`}>{run?.status ?? '—'}</span>
-                    </div>
-                    <div className="pl-3 grid grid-cols-4 gap-x-4 text-[11px]">
-                      <span><span className="text-zinc-700">bruto     </span><span className="text-zinc-400">{formatRupiah(h.bruto ?? 0)}</span></span>
-                      <span><span className="text-zinc-700">pph21     </span><span className="text-amber-400">{formatRupiah(h.pph ?? 0)}</span></span>
-                      <span><span className="text-zinc-700">bpjs_k    </span><span className="text-zinc-400">{formatRupiah(h.bpjs_karyawan ?? 0)}</span></span>
-                      <span><span className="text-zinc-700">thp       </span><span className="text-green-400">{formatRupiah(h.thp ?? 0)}</span></span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
+          ) : payrollHistory.map((h, i) => {
+            const run = h.payroll_runs;
+            return (
+              <Link key={h.id}
+                href={`/companies/${companyId}/payroll/${run?.tahun}/${run?.bulan}`}
+                className={`block px-5 py-4 hover:bg-[#0F0F11] transition-colors ${i < payrollHistory.length-1 ? 'border-b border-[#131315]' : ''}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-zinc-300">
+                    <span className="text-[#D4AF37]">$</span>{' '}
+                    <span className="font-bold">{run ? `${BULAN_NAMES[run.bulan-1]} ${run.tahun}` : '—'}</span>
+                  </span>
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest ${
+                    run?.status === 'locked'     ? 'bg-green-900/30 text-green-500' :
+                    run?.status === 'calculated' ? 'bg-sky-900/30 text-sky-400' : 'bg-zinc-800 text-zinc-600'
+                  }`}>{run?.status ?? '—'}</span>
+                </div>
+                <div className="pl-3 grid grid-cols-4 gap-x-4 text-[11px]">
+                  <span><span className="text-zinc-700">bruto     </span><span className="text-zinc-400">{formatRupiah(h.bruto ?? 0)}</span></span>
+                  <span><span className="text-zinc-700">pph21     </span><span className="text-amber-400">{formatRupiah(h.pph ?? 0)}</span></span>
+                  <span><span className="text-zinc-700">bpjs_k    </span><span className="text-zinc-400">{formatRupiah(h.bpjs_karyawan ?? 0)}</span></span>
+                  <span><span className="text-zinc-700">thp       </span>
+                    <span className="text-green-400 font-bold text-sm">{formatRupiah(h.thp ?? 0)}</span>
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       )}
 
-      {/* Edit Modal */}
+      {/* EDIT MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="px-5 py-4 border-b border-[#1A1A1C] flex items-center justify-between sticky top-0 bg-[#111113]">
-              <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Edit Profil — {employee.nama}</p>
-              <button onClick={() => setShowEditModal(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors">
-                <X size={16} />
-              </button>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">Edit — {employee.nama}</p>
+              <button onClick={() => setShowEditModal(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={16} /></button>
             </div>
-            <form action={handleUpdateEmployee} className="p-5 space-y-5">
+            <form action={handleUpdateEmployee} className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: 'Nama Lengkap', name: 'nama', defaultValue: employee.nama },
-                  { label: 'NIK', name: 'nik', defaultValue: employee.nik },
-                  { label: 'Jabatan', name: 'jabatan', defaultValue: employee.jabatan ?? '' },
-                  { label: 'Divisi', name: 'divisi', defaultValue: employee.divisi ?? '' },
-                ].map(f => (
-                  <div key={f.name}>
-                    <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{f.label}</label>
-                    <input name={f.name} type="text" defaultValue={f.defaultValue}
-                      className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 transition-colors font-mono" />
-                  </div>
-                ))}
-                {[
-                  { label: 'Gaji Pokok', name: 'gaji_pokok', defaultValue: employee.gaji_pokok },
-                  { label: 'Benefit', name: 'benefit', defaultValue: employee.benefit },
-                  { label: 'Kendaraan', name: 'kendaraan', defaultValue: employee.kendaraan },
-                  { label: 'Pulsa', name: 'pulsa', defaultValue: employee.pulsa },
-                  { label: 'Operasional', name: 'operasional', defaultValue: employee.operasional },
-                  { label: 'Tunj. Lain', name: 'tunj_lain', defaultValue: employee.tunj_lain },
-                ].map(f => (
-                  <div key={f.name}>
-                    <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">{f.label}</label>
-                    <input name={f.name} type="number" defaultValue={f.defaultValue}
-                      className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 transition-colors font-mono" />
-                  </div>
-                ))}
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Status PTKP</label>
-                  <select name="status_ptkp" defaultValue={employee.status_ptkp}
-                    className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 transition-colors">
-                    {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Punya NPWP?</label>
-                  <select name="punya_npwp" defaultValue={employee.punya_npwp ? 'true' : 'false'}
-                    className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 transition-colors">
-                    <option value="true">Ya</option>
-                    <option value="false">Tidak</option>
-                  </select>
+                <TF label="Nama Lengkap" name="nama"    defaultValue={employee.nama} />
+                <NikInput  label="NIK"   name="nik"     defaultValue={employee.nik} />
+                <TF label="Jabatan"      name="jabatan" defaultValue={employee.jabatan ?? ''} />
+                <TF label="Divisi"       name="divisi"  defaultValue={employee.divisi  ?? ''} />
+                <NpwpInput label="NPWP"  name="npwp"    defaultValue={employee.npwp ?? ''} />
+                <SF label="Status PTKP" name="status_ptkp" defaultValue={employee.status_ptkp}>
+                  {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
+                </SF>
+                <SF label="Punya NPWP?" name="punya_npwp" defaultValue={employee.punya_npwp ? 'true' : 'false'}>
+                  <option value="true">Ya</option>
+                  <option value="false">Tidak</option>
+                </SF>
+              </div>
+              <div className="border-t border-[#1A1A1C] pt-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">Kompensasi</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <NominalInput label="Gaji Pokok"    name="gaji_pokok"  defaultValue={employee.gaji_pokok} />
+                  <NominalInput label="Benefit"       name="benefit"     defaultValue={employee.benefit} />
+                  <NominalInput label="Kendaraan"     name="kendaraan"   defaultValue={employee.kendaraan} />
+                  <NominalInput label="Pulsa"         name="pulsa"       defaultValue={employee.pulsa} />
+                  <NominalInput label="Operasional"   name="operasional" defaultValue={employee.operasional} />
+                  <NominalInput label="Tunj. Lain"    name="tunj_lain"   defaultValue={employee.tunj_lain} />
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2 border-t border-[#1A1A1C]">
-                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</button>
+                <button type="button" onClick={() => setShowEditModal(false)}
+                  className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</button>
                 <button type="submit" disabled={isSaving}
                   className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
                   <Save size={13} />
-                  {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
+                  {isSaving ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
             </form>
@@ -343,17 +408,17 @@ export default function EmployeeDetailPage() {
         </div>
       )}
 
-      {/* Add Event Modal */}
+      {/* ADD EVENT MODAL */}
       {showEventModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg w-full max-w-md">
             <div className="px-5 py-4 border-b border-[#1A1A1C] flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">Tambah Variasi Bulanan</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Tambah Variasi Bulanan</p>
               <button onClick={() => setShowEventModal(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={16} /></button>
             </div>
             <form action={handleAddEvent} className="p-5 space-y-4">
               <input type="hidden" name="employee_id" value={empId} />
-              <input type="hidden" name="company_id" value={companyId} />
+              <input type="hidden" name="company_id"  value={companyId} />
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Tahun</label>
@@ -362,15 +427,16 @@ export default function EmployeeDetailPage() {
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Bulan</label>
-                  <select name="bulan" defaultValue={new Date().getMonth() + 1}
+                  <select name="bulan" defaultValue={new Date().getMonth()+1}
                     className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
-                    {BULAN_NAMES.map((b, i) => <option key={i} value={i + 1}>{b}</option>)}
+                    {BULAN_NAMES.map((b,i) => <option key={i} value={i+1}>{b}</option>)}
                   </select>
                 </div>
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Tipe Variasi</label>
-                <select name="tipe" className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
+                <select name="tipe"
+                  className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40">
                   <option value="thr">THR</option>
                   <option value="bonus">Bonus</option>
                   <option value="benefit_extra">Extra Benefit (Taxable)</option>
@@ -379,17 +445,14 @@ export default function EmployeeDetailPage() {
                   <option value="pot_lain">Potongan Lain</option>
                 </select>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Nilai (Rp)</label>
-                <input name="nilai" type="number" required placeholder="0"
-                  className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 font-mono" />
-              </div>
+              <NominalInput label="Nilai (Rp)" name="nilai" required />
               <div>
                 <label className="block text-[10px] font-bold text-zinc-600 uppercase tracking-widest mb-1.5">Keterangan</label>
                 <textarea name="keterangan" rows={2}
                   className="w-full px-3 py-2.5 bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg text-sm text-zinc-200 outline-none focus:border-[#D4AF37]/40 resize-none" />
               </div>
-              <button type="submit" className="w-full bg-[#D4AF37] text-[#0A0A0B] py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
+              <button type="submit"
+                className="w-full bg-[#D4AF37] text-[#0A0A0B] py-2.5 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
                 Simpan Variasi
               </button>
             </form>
