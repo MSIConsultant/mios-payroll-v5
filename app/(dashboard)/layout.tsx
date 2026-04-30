@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { hasSupabaseEnv } from '@/lib/env';
 import SetupRequired from '@/components/SetupRequired';
 import NavLinks from '@/components/layout/NavLinks';
+import { Toaster } from 'sonner';
 import { LogOut } from 'lucide-react';
 
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -28,10 +29,11 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
 
         <div className="p-3 border-t border-[#1A1A1C] mt-auto">
           <div className="px-2 py-2 mb-1">
-            <p className="text-[10px] text-zinc-600 truncate">{user.email}</p>
+            <p className="text-[10px] text-zinc-600 truncate font-mono">{user.email}</p>
           </div>
           <form action="/auth/signout" method="post">
-            <button type="submit" className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-600 hover:text-red-400 hover:bg-[#111113] rounded-lg transition-all">
+            <button type="submit"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-zinc-600 hover:text-red-400 hover:bg-[#111113] rounded-lg transition-all">
               <LogOut size={13} />
               Keluar
             </button>
@@ -44,6 +46,26 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           {children}
         </div>
       </main>
+
+      <Toaster
+        position="bottom-right"
+        theme="dark"
+        toastOptions={{
+          style: {
+            background: '#111113',
+            border: '1px solid #1A1A1C',
+            color: '#e4e4e7',
+            fontFamily: 'ui-monospace, monospace',
+            fontSize: '12px',
+            letterSpacing: '0.02em',
+          },
+          classNames: {
+            success: 'border-green-900/50',
+            error:   'border-red-900/50',
+            warning: 'border-amber-900/50',
+          },
+        }}
+      />
     </div>
   );
 }
