@@ -161,7 +161,7 @@ export default function NewEmployeePage() {
               <Chk name="ikut_jp"  label="JP"  defaultChecked />
               <Chk name="ikut_jkp" label="JKP" defaultChecked />
               <div className="pt-3 border-t border-[#1A1A1C]">
-                <SF label="Tarif JKK" name="jkk_rate" defaultValue="0.0054">
+                <SF label="Tarif JKK" name="jkk_rate" defaultValue="0.0024">
                   <option value="0.0024">0.24% – Sangat Rendah</option>
                   <option value="0.0054">0.54% – Rendah</option>
                   <option value="0.0089">0.89% – Sedang</option>
