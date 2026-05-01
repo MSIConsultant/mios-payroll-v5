@@ -7,7 +7,7 @@ import { Employee, EmployeeEvent } from '@/lib/types';
 import { ArrowLeft, Edit2, Trash2, X, Plus, Save, PowerOff, Power } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { addEvent, deleteEvent, deleteEmployee, updateEmployee } from '@/lib/actions/employees';
-import { NpwpInput, NikInput, NominalInput } from '@/components/ui/FormattedInput';
+import { NpwpInput, NikInput, NominalInput, DateInput } from '@/components/ui/FormattedInput';
 import { toast } from 'sonner';
 
 const BULAN_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
@@ -47,6 +47,16 @@ function TF({ label, name, defaultValue }: { label: string; name: string; defaul
         className="w-full px-3 py-2.5 bg-[#0D0D0F] border rounded-lg text-sm text-zinc-200 outline-none transition-colors font-mono"
         style={{ borderColor: focused ? 'rgba(212,175,55,0.4)' : '#1A1A1C' }} />
     </div>
+  );
+}
+function Chk({ name, label, defaultChecked }: { name: string; label: string; defaultChecked?: boolean }) {
+  const [checked, setChecked] = useState(!!defaultChecked);
+  return (
+    <label className="flex items-center gap-3 cursor-pointer group">
+      <input type="checkbox" name={name} checked={checked} onChange={e => setChecked(e.target.checked)}
+        className="w-4 h-4 rounded border-zinc-700 bg-[#0D0D0F] text-[#D4AF37] focus:ring-0 cursor-pointer" />
+      <span className="text-xs text-zinc-500 group-hover:text-zinc-300 transition-colors uppercase tracking-widest font-bold">{label}</span>
+    </label>
   );
 }
 
@@ -360,47 +370,115 @@ export default function EmployeeDetailPage() {
         </div>
       )}
 
-      {/* EDIT MODAL */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
           <div className="bg-[#111113] border border-[#1A1A1C] rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="px-5 py-4 border-b border-[#1A1A1C] flex items-center justify-between sticky top-0 bg-[#111113]">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">Edit — {employee.nama}</p>
+            <div className="px-5 py-4 border-b border-[#1A1A1C] flex items-center justify-between sticky top-0 bg-[#111113] z-10">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400 font-mono">Edit Lengkap — {employee.nama}</p>
               <button onClick={() => setShowEditModal(false)} className="text-zinc-600 hover:text-zinc-300 transition-colors"><X size={16} /></button>
             </div>
-            <form action={handleUpdateEmployee} className="p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <TF label="Nama Lengkap" name="nama"    defaultValue={employee.nama} />
-                <NikInput  label="NIK"   name="nik"     defaultValue={employee.nik} />
-                <TF label="Jabatan"      name="jabatan" defaultValue={employee.jabatan ?? ''} />
-                <TF label="Divisi"       name="divisi"  defaultValue={employee.divisi  ?? ''} />
-                <NpwpInput label="NPWP"  name="npwp"    defaultValue={employee.npwp ?? ''} />
-                <SF label="Status PTKP" name="status_ptkp" defaultValue={employee.status_ptkp}>
-                  {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
-                </SF>
-                <SF label="Punya NPWP?" name="punya_npwp" defaultValue={employee.punya_npwp ? 'true' : 'false'}>
-                  <option value="true">Ya</option>
-                  <option value="false">Tidak</option>
-                </SF>
-              </div>
-              <div className="border-t border-[#1A1A1C] pt-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4">Kompensasi</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <NominalInput label="Gaji Pokok"    name="gaji_pokok"  defaultValue={employee.gaji_pokok} />
-                  <NominalInput label="Benefit"       name="benefit"     defaultValue={employee.benefit} />
-                  <NominalInput label="Kendaraan"     name="kendaraan"   defaultValue={employee.kendaraan} />
-                  <NominalInput label="Pulsa"         name="pulsa"       defaultValue={employee.pulsa} />
-                  <NominalInput label="Operasional"   name="operasional" defaultValue={employee.operasional} />
-                  <NominalInput label="Tunj. Lain"    name="tunj_lain"   defaultValue={employee.tunj_lain} />
+            <form action={handleUpdateEmployee} className="p-5 space-y-6">
+
+              {/* IDENTITY */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">Identitas Diri</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <TF label="Nama Lengkap" name="nama"    defaultValue={employee.nama} />
+                  <NikInput  label="NIK"   name="nik"     defaultValue={employee.nik} />
+                  <NpwpInput label="NPWP"  name="npwp"    defaultValue={employee.npwp ?? ''} />
+                  <SF label="Punya NPWP?" name="punya_npwp" defaultValue={employee.punya_npwp ? 'true' : 'false'}>
+                    <option value="true">Ya (NPWP Valid)</option>
+                    <option value="false">Tidak (+20% PPh)</option>
+                  </SF>
+                  <SF label="Status PTKP" name="status_ptkp" defaultValue={employee.status_ptkp}>
+                    {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
+                  </SF>
+                  <SF label="Jenis Kelamin" name="jenis_kelamin" defaultValue={employee.jenis_kelamin}>
+                    <option value="L">Laki-laki</option>
+                    <option value="P">Perempuan</option>
+                  </SF>
+                  <DateInput label="Tanggal Masuk" name="tanggal_masuk" defaultValue={employee.tanggal_masuk ?? ''} />
+                  <TF label="Jabatan"  name="jabatan" defaultValue={employee.jabatan ?? ''} />
+                  <div className="col-span-2">
+                    <TF label="Divisi"   name="divisi"  defaultValue={employee.divisi  ?? ''} />
+                  </div>
                 </div>
               </div>
+
+              {/* COMPENSATION */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">Kompensasi</p>
+                {employee.jenis_karyawan === 'tetap' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <NominalInput label="Gaji Pokok"    name="gaji_pokok"  defaultValue={employee.gaji_pokok} />
+                    <NominalInput label="Benefit"        name="benefit"     defaultValue={employee.benefit} />
+                    <NominalInput label="Kendaraan"      name="kendaraan"   defaultValue={employee.kendaraan} />
+                    <NominalInput label="Pulsa"          name="pulsa"       defaultValue={employee.pulsa} />
+                    <NominalInput label="Operasional"    name="operasional" defaultValue={employee.operasional} />
+                    <NominalInput label="Tunjangan Lain" name="tunj_lain"   defaultValue={employee.tunj_lain} />
+              </div>
+                ) : employee.jenis_karyawan === 'tidak_tetap_harian' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <NominalInput label="Upah Harian *"      name="upah_harian"       defaultValue={employee.upah_harian ?? 0} />
+                    <TF           label="Hari Kerja Default" name="hari_kerja_default" defaultValue={String(employee.hari_kerja_default ?? 22)} />
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <NominalInput label="Upah Bulanan TT" name="upah_bulanan_tt" defaultValue={employee.upah_bulanan_tt ?? 0} />
+                    <NominalInput label="Tunjangan TT"    name="tunjangan_tt"   defaultValue={employee.tunjangan_tt ?? 0} />
+                  </div>
+                )}
+                <input type="hidden" name="jenis_karyawan" value={employee.jenis_karyawan} />
+              </div>
+
+              {/* BPJS */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">BPJS Ketenagakerjaan & Kesehatan</p>
+                <div className="grid grid-cols-3 gap-6">
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-zinc-700 uppercase tracking-widest mb-2">Kepesertaan</p>
+                    <Chk name="ikut_jht" label="JHT" defaultChecked={employee.ikut_jht} />
+                    <Chk name="ikut_jp"  label="JP"  defaultChecked={employee.ikut_jp} />
+                    <Chk name="ikut_jkp" label="JKP" defaultChecked={employee.ikut_jkp} />
+                    <Chk name="ikut_kes" label="Kesehatan" defaultChecked={employee.ikut_kes} />
+                  </div>
+                  <div className="space-y-3">
+                      <p className="text-[10px] text-zinc-700 uppercase tracking-widest mb-2">Tunjangan Iuran Karyawan</p>
+                    <Chk name="tanggung_jht_k" label="Tunj. JHT Karyawan" defaultChecked={employee.tanggung_jht_k} />
+                    <Chk name="tanggung_jp_k"  label="Tunj. JP Karyawan"  defaultChecked={employee.tanggung_jp_k} />
+                    <Chk name="tanggung_kes_k" label="Tunj. Kes Karyawan" defaultChecked={employee.tanggung_kes_k} />
+                  </div>
+                  <div className="space-y-3">
+                    <SF label="Tarif JKK Perusahaan" name="jkk_rate" defaultValue={String(employee.jkk_rate)}>
+                      <option value="0.0024">0.24% – Sangat Rendah</option>
+                      <option value="0.0054">0.54% – Rendah</option>
+                      <option value="0.0089">0.89% – Sedang</option>
+                      <option value="0.0127">1.27% – Tinggi</option>
+                      <option value="0.0174">1.74% – Sangat Tinggi</option>
+                    </SF>
+                  </div>
+                </div>
+              </div>
+
+              {/* PPh */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 border-b border-[#1A1A1C] pb-2">Skema PPh 21</p>
+                <div className="bg-[#0D0D0F] border border-[#1A1A1C] rounded-lg p-4 max-w-sm">
+                  <Chk name="pph_ditanggung" label="Grossup (PPh Ditanggung Perusahaan)" defaultChecked={employee.pph_ditanggung} />
+                  <p className="text-[10px] text-zinc-700 mt-3 leading-relaxed font-mono">
+                    Jika dicentang: THP karyawan = nominal gaji di atas (PPh menjadi beban perusahaan).
+                    Jika tidak: PPh dipotong dari gaji karyawan.
+                  </p>
+                </div>
+              </div>
+
               <div className="flex justify-end gap-3 pt-2 border-t border-[#1A1A1C]">
                 <button type="button" onClick={() => setShowEditModal(false)}
                   className="px-4 py-2 text-xs text-zinc-600 hover:text-zinc-400 transition-colors">Batal</button>
                 <button type="submit" disabled={isSaving}
                   className="inline-flex items-center gap-2 bg-[#D4AF37] text-[#0A0A0B] px-5 py-2 rounded-lg font-bold text-xs uppercase tracking-widest hover:bg-[#c9a32e] disabled:opacity-50 transition-colors">
                   <Save size={13} />
-                  {isSaving ? 'Menyimpan...' : 'Simpan'}
+                  {isSaving ? 'Menyimpan...' : 'Simpan Semua Perubahan'}
                 </button>
               </div>
             </form>
