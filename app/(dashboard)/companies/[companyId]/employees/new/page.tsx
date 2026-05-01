@@ -5,7 +5,7 @@ import { createEmployee } from '@/lib/actions/employees';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { NpwpInput, NikInput, NominalInput } from '@/components/ui/FormattedInput';
+import { NpwpInput, NikInput, NominalInput, DateInput} from '@/components/ui/FormattedInput';
 
 function SF({ label, name, children, defaultValue }: { label: string; name: string; children: React.ReactNode; defaultValue?: string }) {
   const [focused, setFocused] = useState(false);
@@ -107,7 +107,7 @@ export default function NewEmployeePage() {
             <SF label="Status PTKP *" name="status_ptkp">
               {['TK0','TK1','TK2','TK3','K0','K1','K2','K3'].map(s => <option key={s}>{s}</option>)}
             </SF>
-            <TF label="Tanggal Masuk" name="tanggal_masuk" type="date" />
+            <DateInput label="Tanggal Masuk" name="tanggal_masuk" />
             <TF label="Divisi"   name="divisi"   placeholder="Engineering" />
             <TF label="Jabatan"  name="jabatan"  placeholder="Staff Akuntansi" />
           </div>
