@@ -9,9 +9,8 @@ import { calculateMonthlySalary, calculateFreelance } from '@/lib/engine/payroll
 import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
 import { printSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
-import { toast } from 'sonner'; 
+import { toast } from 'sonner';
 
-const [calcProgress, setCalcProgress] = useState({ current: 0, total: 0 });
 const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const sep = '─'.repeat(38);
 
@@ -29,14 +28,15 @@ function CliSep() {
 
 export default function PayrollRunPage() {
   const { companyId, tahun, bulan } = useParams();
-  const [employees, setEmployees] = useState<any[]>([]);
-  const [events, setEvents]       = useState<any[]>([]);
+  const [employees, setEmployees]   = useState<any[]>([]);
+  const [events, setEvents]         = useState<any[]>([]);
   const [existingRun, setExistingRun] = useState<any>(null);
-  const [results, setResults]     = useState<any[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
+  const [results, setResults]       = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [saving, setSaving]         = useState(false);
   const [isCalculated, setIsCalculated] = useState(false);
-  const [company, setCompany]     = useState<any>(null);
+  const [company, setCompany]       = useState<any>(null);
+  const [calcProgress, setCalcProgress] = useState({ current: 0, total: 0 });
 
   useEffect(() => {
     async function fetchData() {
@@ -150,7 +150,7 @@ export default function PayrollRunPage() {
     setSaving(true);
     const res = await savePayrollRun(companyId as string, Number(tahun), Number(bulan), results);
     if (res.error) { toast.error(res.error); setSaving(false); return; }
-    else setExistingRun((p: any) => ({ ...p, id: res.runId, status: 'calculated' }));
+    setExistingRun((p: any) => ({ ...p, id: res.runId, status: 'calculated' }));
     setSaving(false);
   }
 
@@ -160,7 +160,7 @@ export default function PayrollRunPage() {
     setSaving(true);
     const res = await lockPayrollRun(existingRun.id, companyId as string, Number(tahun), Number(bulan));
     if (res.error) { toast.error(res.error); setSaving(false); return; }
-    else setExistingRun((p: any) => ({ ...p, status: 'locked' }));
+    setExistingRun((p: any) => ({ ...p, status: 'locked' }));
     setSaving(false);
   }
 
