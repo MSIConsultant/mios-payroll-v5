@@ -28,11 +28,13 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl
 
-  const isAuthPage = pathname.startsWith('/login') 
+const isAuthPage = pathname.startsWith('/login') 
     || pathname.startsWith('/register') 
     || pathname.startsWith('/invite') 
     || pathname.startsWith('/auth') 
     || pathname.startsWith('/oauth')
+    || pathname.startsWith('/forgot-password')
+    || pathname.startsWith('/reset-password')
 
   if (!user && !isAuthPage) {
     const redirectUrl = request.nextUrl.clone()
