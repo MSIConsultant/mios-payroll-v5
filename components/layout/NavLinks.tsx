@@ -1,10 +1,11 @@
 'use client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Building2, Settings } from 'lucide-react';
+import { LayoutDashboard, Building2, Layers, Settings } from 'lucide-react';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard',  icon: LayoutDashboard },
+  { href: '/batch',     label: 'Batch Run',  icon: Layers },
   { href: '/companies', label: 'Perusahaan', icon: Building2 },
   { href: '/settings',  label: 'Pengaturan', icon: Settings },
 ];
