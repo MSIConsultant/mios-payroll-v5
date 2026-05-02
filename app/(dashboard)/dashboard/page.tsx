@@ -1,15 +1,20 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Lock, CheckCircle2, Clock } from 'lucide-react';
 
-const BULAN = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
-const fmt = (n: number) => n ? 'Rp ' + Math.round(n).toLocaleString('id-ID') : 'Rp 0';
+const BULAN_ID = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+const BULAN_SHORT = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const fmt = (n: number) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
 
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
+
+  const now = new Date();
+  const bulanIni = now.getMonth() + 1;
+  const tahunIni = now.getFullYear();
 
   const { data: membership } = await supabase
     .from('workspace_members').select('workspace_id, workspaces(id, name)')
@@ -20,7 +25,7 @@ export default async function DashboardPage() {
   const wsName = (Array.isArray(ws) ? ws[0]?.name : (ws as any)?.name) ?? '—';
 
   const { data: companies } = await supabase
-    .from('companies').select('id, name, kota, industri')
+    .from('companies').select('id, name, kota')
     .eq('workspace_id', workspaceId ?? '').eq('aktif', true);
 
   const companyIds = (companies ?? []).map(c => c.id);
@@ -30,11 +35,23 @@ export default async function DashboardPage() {
         .in('company_id', companyIds).eq('aktif', true)
     : { count: 0 };
 
+  // This month's payroll runs
+  const { data: thisMonthRuns } = companyIds.length > 0
+    ? await supabase.from('payroll_runs').select('company_id, status')
+        .in('company_id', companyIds).eq('tahun', tahunIni).eq('bulan', bulanIni)
+    : { data: [] };
+
+  const runMap = Object.fromEntries((thisMonthRuns ?? []).map(r => [r.company_id, r.status]));
+  const locked = (thisMonthRuns ?? []).filter(r => r.status === 'locked').length;
+  const calculated = (thisMonthRuns ?? []).filter(r => r.status === 'calculated').length;
+  const pending = (companies?.length ?? 0) - locked - calculated;
+
+  // Recent payroll log
   const { data: recentRuns } = companyIds.length > 0
     ? await supabase.from('payroll_runs')
         .select('id, company_id, tahun, bulan, status, calculated_at')
         .in('company_id', companyIds)
-        .order('calculated_at', { ascending: false }).limit(12)
+        .order('calculated_at', { ascending: false }).limit(10)
     : { data: [] };
 
   const runIds = (recentRuns ?? []).map(r => r.id);
@@ -45,114 +62,157 @@ export default async function DashboardPage() {
   const totalsMap: Record<string, { thp: number; bruto: number; pph: number; count: number }> = {};
   for (const r of runTotals ?? []) {
     if (!totalsMap[r.run_id]) totalsMap[r.run_id] = { thp: 0, bruto: 0, pph: 0, count: 0 };
-    totalsMap[r.run_id].thp += r.thp ?? 0;
+    totalsMap[r.run_id].thp   += r.thp   ?? 0;
     totalsMap[r.run_id].bruto += r.bruto ?? 0;
-    totalsMap[r.run_id].pph += r.pph ?? 0;
+    totalsMap[r.run_id].pph   += r.pph   ?? 0;
     totalsMap[r.run_id].count += 1;
   }
-
   const companyMap = Object.fromEntries((companies ?? []).map(c => [c.id, c]));
-  const now = new Date();
-  const runsThisMonth = (recentRuns ?? []).filter(r =>
-    r.bulan === now.getMonth() + 1 && r.tahun === now.getFullYear()
-  ).length;
 
   return (
-    <div className="max-w-4xl space-y-8">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-1">Workspace Aktif</p>
-        <h1 className="text-xl font-bold text-zinc-100">{wsName}</h1>
-      </div>
+    <div className="max-w-4xl space-y-8 animate-fade-in-up">
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Perusahaan', value: companies?.length ?? 0 },
-          { label: 'Karyawan Aktif', value: empCount ?? 0 },
-          { label: `Run ${BULAN[now.getMonth() + 1]} ${now.getFullYear()}`, value: runsThisMonth },
-        ].map(s => (
-          <div key={s.label} className="bg-[#111113] border border-[#1A1A1C] rounded-lg p-5">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3">{s.label}</p>
-            <p className="text-3xl font-bold text-zinc-100 font-mono">{s.value}</p>
+      {/* Period header — the hero */}
+      <div className="border-b border-[#1A1A1C] pb-6">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 font-mono mb-2">
+          {wsName} · Periode Aktif
+        </p>
+        <div className="flex items-baseline gap-4">
+          <h1 className="text-5xl font-black text-zinc-100 font-mono tracking-tighter leading-none">
+            {BULAN_ID[bulanIni].toUpperCase()}
+          </h1>
+          <span className="text-2xl font-bold text-zinc-600 font-mono">{tahunIni}</span>
+        </div>
+
+        {/* This month status bar */}
+        <div className="flex items-center gap-6 mt-4">
+          <div className="flex items-center gap-2">
+            <Lock size={11} className="text-green-400" />
+            <span className="text-xs font-bold text-green-400 font-mono">{locked} terkunci</span>
           </div>
-        ))}
-      </div>
-
-      {/* CLI Payroll Log */}
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-3">Log Payroll</p>
-        <div className="bg-[#080809] border border-[#1A1A1C] rounded-lg overflow-hidden font-mono">
-          <div className="px-4 py-2 bg-[#0F0F11] border-b border-[#1A1A1C] flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500/40" />
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500/40" />
-            <span className="ml-3 text-[10px] text-zinc-700 uppercase tracking-widest">payroll.log</span>
+          <div className="flex items-center gap-2">
+            <CheckCircle2 size={11} className="text-sky-400" />
+            <span className="text-xs font-bold text-sky-400 font-mono">{calculated} dihitung</span>
           </div>
-
-          {(recentRuns ?? []).length === 0 ? (
-            <div className="px-5 py-10 text-xs text-zinc-700">
-              <span className="text-[#D4AF37]">$</span> Belum ada run.{' '}
-              <Link href="/companies" className="text-sky-500 underline">Mulai dari sini →</Link>
-            </div>
-          ) : (
-            <div>
-              {(recentRuns ?? []).map((run, i) => {
-                const t = totalsMap[run.id];
-                const co = companyMap[run.company_id];
-                return (
-                  <Link
-                    key={run.id}
-                    href={`/companies/${run.company_id}/payroll/${run.tahun}/${run.bulan}`}
-                    className={`block px-5 py-3.5 hover:bg-[#0F0F11] transition-colors ${i < (recentRuns ?? []).length - 1 ? 'border-b border-[#131315]' : ''}`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs text-zinc-300">
-                        <span className="text-[#D4AF37]">$</span>{' '}
-                        <span className="font-bold">{co?.name ?? '—'}</span>
-                        <span className="text-zinc-700"> ── {BULAN[run.bulan]} {run.tahun}</span>
-                      </span>
-                      <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded tracking-widest ${
-                        run.status === 'locked' ? 'bg-green-900/30 text-green-500' :
-                        run.status === 'calculated' ? 'bg-sky-900/30 text-sky-400' :
-                        'bg-zinc-800 text-zinc-600'
-                      }`}>{run.status}</span>
-                    </div>
-                    {t ? (
-                      <div className="pl-3 grid grid-cols-4 gap-x-4 text-[11px]">
-                        <span><span className="text-zinc-700">karyawan  </span><span className="text-zinc-400">{t.count}</span></span>
-                        <span><span className="text-zinc-700">bruto     </span><span className="text-zinc-300">{fmt(t.bruto)}</span></span>
-                        <span><span className="text-zinc-700">pph21     </span><span className="text-amber-400">{fmt(t.pph)}</span></span>
-                        <span><span className="text-zinc-700">thp       </span><span className="text-green-400">{fmt(t.thp)}</span></span>
-                      </div>
-                    ) : (
-                      <p className="pl-3 text-[11px] text-zinc-700">── belum ada hasil tersimpan</p>
-                    )}
-                  </Link>
-                );
-              })}
+          <div className="flex items-center gap-2">
+            <Clock size={11} className="text-zinc-600" />
+            <span className="text-xs font-bold text-zinc-600 font-mono">{pending} pending</span>
+          </div>
+          {/* Visual progress */}
+          {(companies?.length ?? 0) > 0 && (
+            <div className="flex-1 max-w-32 h-1 bg-[#1A1A1C] rounded-full overflow-hidden">
+              <div className="h-full bg-green-500 rounded-full transition-all duration-1000"
+                style={{ width: `${(locked / (companies?.length ?? 1)) * 100}%` }} />
             </div>
           )}
         </div>
       </div>
 
-      {/* Company Quick Links */}
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Perusahaan Aktif', value: companies?.length ?? 0, sub: 'klien terdaftar' },
+          { label: 'Karyawan Aktif',   value: empCount ?? 0,          sub: 'seluruh perusahaan' },
+          { label: `Run ${BULAN_SHORT[bulanIni]} ${tahunIni}`, value: (thisMonthRuns ?? []).length, sub: `dari ${companies?.length ?? 0} perusahaan` },
+        ].map((s, i) => (
+          <div key={s.label}
+            className="bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg p-5 animate-fade-in-up"
+            style={{ animationDelay: `${i * 0.08}s`, opacity: 0 }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-3 font-mono">{s.label}</p>
+            <p className="text-5xl font-black text-zinc-100 font-mono leading-none mb-2">{s.value}</p>
+            <p className="text-[10px] text-zinc-700 font-mono">{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Company status grid — the "mission board" */}
       {(companies ?? []).length > 0 && (
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-3">Perusahaan</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-3 font-mono">
+            Status Payroll {BULAN_SHORT[bulanIni]} {tahunIni}
+          </p>
           <div className="grid grid-cols-2 gap-2">
-            {(companies ?? []).slice(0, 6).map(co => (
-              <Link key={co.id} href={`/companies/${co.id}`}
-                className="flex items-center justify-between bg-[#111113] border border-[#1A1A1C] rounded-lg px-4 py-3 hover:border-[#D4AF37]/30 hover:bg-[#131315] transition-all group">
-                <div>
-                  <p className="text-sm font-semibold text-zinc-300 group-hover:text-zinc-100 transition-colors">{co.name}</p>
-                  <p className="text-[10px] text-zinc-700 mt-0.5">{co.kota ?? co.industri ?? '—'}</p>
-                </div>
-                <ArrowRight size={13} className="text-zinc-700 group-hover:text-[#D4AF37] transition-colors" />
-              </Link>
-            ))}
+            {(companies ?? []).map((co, i) => {
+              const status = runMap[co.id];
+              const borderColor = status === 'locked' ? '#22c55e' : status === 'calculated' ? '#38bdf8' : '#27272a';
+              const statusLabel = status === 'locked' ? 'locked' : status === 'calculated' ? 'calculated' : 'pending';
+              const statusColor = status === 'locked' ? 'text-green-400' : status === 'calculated' ? 'text-sky-400' : 'text-zinc-700';
+              return (
+                <Link key={co.id} href={`/companies/${co.id}/payroll/${tahunIni}/${bulanIni}`}
+                  className="flex items-center justify-between bg-[#0A0A0B] border border-[#1A1A1C] rounded-lg px-4 py-3 hover:bg-[#111113] transition-all group animate-fade-in-up"
+                  style={{ borderLeftColor: borderColor, borderLeftWidth: '3px', animationDelay: `${i * 0.04}s`, opacity: 0 }}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-zinc-300 group-hover:text-zinc-100 transition-colors truncate font-mono">
+                      {co.name}
+                    </p>
+                    <p className="text-[10px] text-zinc-700 mt-0.5">{co.kota ?? '—'}</p>
+                  </div>
+                  <span className={`text-[9px] font-black uppercase tracking-widest font-mono ${statusColor} shrink-0 ml-3`}>
+                    {statusLabel}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* Payroll log */}
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-700 mb-3 font-mono">
+          Log Payroll Terbaru
+        </p>
+        <div className="bg-[#060607] border border-[#1A1A1C] rounded-lg overflow-hidden font-mono">
+          <div className="px-4 py-2.5 bg-[#0A0A0B] border-b border-[#1A1A1C] flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 rounded-full bg-red-500/50" />
+            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/50" />
+            <div className="w-2.5 h-2.5 rounded-full bg-green-500/50" />
+            <span className="ml-3 text-[10px] text-zinc-800 uppercase tracking-widest">payroll.log</span>
+            <span className="ml-1 text-[#D4AF37] animate-blink text-xs">_</span>
+          </div>
+
+          {(recentRuns ?? []).length === 0 ? (
+            <div className="px-5 py-10 text-xs text-zinc-800">
+              $ belum ada run.{' '}
+              <Link href="/companies" className="text-[#D4AF37] hover:underline">mulai dari sini →</Link>
+            </div>
+          ) : (recentRuns ?? []).map((run, i) => {
+            const t = totalsMap[run.id];
+            const co = companyMap[run.company_id];
+            return (
+              <Link key={run.id}
+                href={`/companies/${run.company_id}/payroll/${run.tahun}/${run.bulan}`}
+                className={`block px-5 py-3.5 hover:bg-[#0A0A0B] transition-colors animate-fade-in-up ${
+                  i < (recentRuns ?? []).length - 1 ? 'border-b border-[#0F0F11]' : ''
+                }`}
+                style={{ animationDelay: `${i * 0.03}s`, opacity: 0 }}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs text-zinc-400">
+                    <span className="text-[#D4AF37]">$</span>{' '}
+                    <span className="font-bold text-zinc-200">{co?.name ?? '—'}</span>
+                    <span className="text-zinc-700"> ── {BULAN_SHORT[run.bulan]} {run.tahun}</span>
+                  </span>
+                  <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded tracking-widest ${
+                    run.status === 'locked'     ? 'bg-green-900/25 text-green-500' :
+                    run.status === 'calculated' ? 'bg-sky-900/25 text-sky-400' :
+                    'bg-zinc-900 text-zinc-700'
+                  }`}>{run.status}</span>
+                </div>
+                {t ? (
+                  <div className="pl-3 grid grid-cols-4 gap-x-4 text-[11px]">
+                    <span><span className="text-zinc-800">kar  </span><span className="text-zinc-500">{t.count}</span></span>
+                    <span><span className="text-zinc-800">bruto </span><span className="text-zinc-400">{fmt(t.bruto)}</span></span>
+                    <span><span className="text-zinc-800">pph   </span><span className="text-amber-500">{fmt(t.pph)}</span></span>
+                    <span><span className="text-zinc-800">thp   </span><span className="text-green-400 font-bold">{fmt(t.thp)}</span></span>
+                  </div>
+                ) : (
+                  <p className="pl-3 text-[11px] text-zinc-800">── belum ada hasil</p>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
