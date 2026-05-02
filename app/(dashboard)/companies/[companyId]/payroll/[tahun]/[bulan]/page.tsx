@@ -9,6 +9,7 @@ import { calculateMonthlySalary, calculateFreelance } from '@/lib/engine/payroll
 import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
 import { printSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
+import { toast } from 'sonner'; 
 
 const [calcProgress, setCalcProgress] = useState({ current: 0, total: 0 });
 const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
@@ -148,7 +149,7 @@ export default function PayrollRunPage() {
   async function handleSave() {
     setSaving(true);
     const res = await savePayrollRun(companyId as string, Number(tahun), Number(bulan), results);
-    if (res.error) alert(res.error);
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
     else setExistingRun((p: any) => ({ ...p, id: res.runId, status: 'calculated' }));
     setSaving(false);
   }
@@ -158,7 +159,7 @@ export default function PayrollRunPage() {
     if (!confirm('Kunci payroll? Data tidak bisa diubah lagi.')) return;
     setSaving(true);
     const res = await lockPayrollRun(existingRun.id, companyId as string, Number(tahun), Number(bulan));
-    if (res.error) alert(res.error);
+    if (res.error) { toast.error(res.error); setSaving(false); return; }
     else setExistingRun((p: any) => ({ ...p, status: 'locked' }));
     setSaving(false);
   }
