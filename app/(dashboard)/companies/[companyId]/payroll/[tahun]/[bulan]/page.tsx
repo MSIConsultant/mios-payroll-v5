@@ -10,6 +10,7 @@ import { savePayrollRun, lockPayrollRun } from '@/lib/actions/payroll';
 import { printSlipGaji } from '@/lib/export/slip-gaji';
 import { exportSPTMasa } from '@/lib/export/spt-masa';
 
+const [calcProgress, setCalcProgress] = useState({ current: 0, total: 0 });
 const BULAN_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 const sep = '─'.repeat(38);
 
@@ -90,7 +91,18 @@ export default function PayrollRunPage() {
   }, [companyId, tahun, bulan]);
 
   function handleCalculate() {
-    const newResults = employees.map(emp => {
+    setCalcProgress({ current: 0, total: employees.length });
+    const newResults: any[] = [];
+    let i = 0;
+
+    function processNext() {
+      if (i >= employees.length) {
+        setResults(newResults);
+        setIsCalculated(true);
+        setCalcProgress({ current: 0, total: 0 });
+        return;
+      }
+      const emp = employees[i];
       const empEvents     = events.filter(e => e.employee_id === emp.id);
       const kasbon        = empEvents.filter(e => e.tipe === 'kasbon').reduce((a: number, b: any) => a + b.nilai, 0);
       const alpha_telat   = empEvents.filter(e => e.tipe === 'alpha_telat').reduce((a: number, b: any) => a + b.nilai, 0);
@@ -113,22 +125,24 @@ export default function PayrollRunPage() {
       } else {
         calcResult = calculateFreelance({
           ...emp,
-          mode:        emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan',
-          upah_harian: emp.upah_harian,
-          hari_kerja:  emp.hari_kerja_default || 22,
+          mode:         emp.jenis_karyawan === 'tidak_tetap_harian' ? 'harian' : 'bulanan',
+          upah_harian:  emp.upah_harian,
+          hari_kerja:   emp.hari_kerja_default || 22,
           upah_bulanan: emp.upah_bulanan_tt,
-          tunjangan:   (emp.tunjangan_tt || 0) + benefit_extra,
+          tunjangan:    (emp.tunjangan_tt || 0) + benefit_extra,
           thr, bonus,
           ikut_bpjs_tk: emp.ikut_jht || emp.ikut_jp,
-          ikut_kes:    emp.ikut_kes,
+          ikut_kes:     emp.ikut_kes,
           kasbon,
-          pot_lain:    pot_lain + (emp.pot_lain || 0),
+          pot_lain:     pot_lain + (emp.pot_lain || 0),
         });
       }
-      return { ...calcResult, employee_id: emp.id, employee_name: emp.nama };
-    });
-    setResults(newResults);
-    setIsCalculated(true);
+      newResults.push({ ...calcResult, employee_id: emp.id, employee_name: emp.nama });
+      i++;
+      setCalcProgress({ current: i, total: employees.length });
+      setTimeout(processNext, 0);
+    }
+    processNext();
   }
 
   async function handleSave() {
@@ -190,11 +204,21 @@ export default function PayrollRunPage() {
             </button>
           )}
           {!isLocked && (
-            <button onClick={handleCalculate}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
-              <Calculator size={13} />
-              {isCalculated ? 'Hitung Ulang' : 'Hitung'}
-            </button>
+            calcProgress.total > 0 ? (
+              <div className="flex items-center gap-3 px-4 py-2 bg-[#111113] border border-[#1A1A1C] rounded-lg">
+                <div className="w-24 h-1 bg-[#1A1A1C] rounded-full overflow-hidden">
+                  <div className="h-full bg-[#D4AF37] rounded-full transition-all duration-150"
+                    style={{ width: `${(calcProgress.current / calcProgress.total) * 100}%` }} />
+                </div>
+                <span className="text-[11px] text-zinc-500 font-mono">{calcProgress.current}/{calcProgress.total}</span>
+              </div>
+            ) : (
+              <button onClick={handleCalculate}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 rounded-lg text-xs font-bold uppercase tracking-widest transition-colors">
+                <Calculator size={13} />
+                {isCalculated ? 'Hitung Ulang' : 'Hitung'}
+              </button>
+            )
           )}
           {isCalculated && !isLocked && (
             <button onClick={handleSave} disabled={saving}
