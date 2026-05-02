@@ -89,9 +89,10 @@ export function NominalInput({ name, defaultValue = 0, label, required }:
         <input type="text" inputMode="numeric" value={display} required={required}
           placeholder="0"
           onChange={e => {
-            const fmt = formatNominalDisplay(e.target.value);
+            const digits = e.target.value.replace(/[^\d]/g, '');
+            const fmt = digits ? parseInt(digits, 10).toLocaleString('id-ID') : '';
             setDisplay(fmt);
-            setRaw(parseNominalToString(fmt));
+            setRaw(digits || '0');
           }}
           className={`${BASE} pl-9 text-lg font-bold`} {...f} />
       </div>
