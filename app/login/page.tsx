@@ -106,6 +106,17 @@ function LoginForm() {
                 </span>
               </button>
             </div>
+            <div className="pt-2 text-center animate-fade-in stagger-5">
+              <Link href="/forgot-password" className="text-[11px] text-zinc-700 hover:text-zinc-500 transition-colors block mb-1">
+                Lupa password?
+              </Link>
+              <p className="text-[11px] text-zinc-700">
+                Belum punya akun?{' '}
+                <Link href="/register" className="text-[#D4AF37] hover:text-yellow-300 transition-colors">
+                  Daftar sekarang
+                </Link>
+              </p>
+            </div>
 
             <div className="pt-2 text-center animate-fade-in stagger-5">
               <p className="text-[11px] text-zinc-700">
