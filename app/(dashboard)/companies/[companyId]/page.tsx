@@ -131,6 +131,11 @@ export default function CompanyDetailPage() {
             <Calendar size={13} />
             Payroll
           </Link>
+          <Link href={`/companies/${companyId}/employees/import`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-[#111113] border border-[#1A1A1C] text-zinc-500 rounded-lg text-xs font-bold uppercase tracking-widest hover:text-zinc-200 hover:border-zinc-600 transition-colors">
+            <Upload size={13} />
+            Import
+          </Link>
           <Link href={`/companies/${companyId}/employees/new`}
             className="inline-flex items-center gap-2 px-4 py-2 bg-[#D4AF37] text-[#0A0A0B] rounded-lg text-xs font-bold uppercase tracking-widest hover:bg-[#c9a32e] transition-colors">
             <Plus size={13} />
