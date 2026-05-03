@@ -7,7 +7,7 @@ import { Company, Employee } from '@/lib/types';
 import { Users, Plus, Search, ArrowLeft, ChevronRight, Calendar, Edit2, X, Save } from 'lucide-react';
 import { formatRupiah } from '@/lib/format';
 import { updateCompany } from '@/lib/actions/companies';
-import { NpwpInput } from '@/components/ui/FormattedInput';
+import { NpwpCompanyInput } from '@/components/ui/FormattedInput';
 import { toast } from 'sonner';
 
 const BULAN = ['','Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
@@ -230,7 +230,7 @@ export default function CompanyDetailPage() {
             </div>
             <form action={async (fd) => { await handleEditCompany(fd); }} className="p-5 space-y-4">
               <TF label="Nama Perusahaan *"  name="name"            defaultValue={company.name}              placeholder="PT Bangun Jaya Abadi" />
-              <NpwpInput label="NPWP Perusahaan" name="npwp_perusahaan" defaultValue={company.npwp_perusahaan ?? ''} />
+              <NpwpCompanyInput label="NPWP Perusahaan" name="npwp_perusahaan" defaultValue={company.npwp_perusahaan ?? ''} />
               <div className="grid grid-cols-2 gap-4">
                 <TF label="Industri" name="industri" defaultValue={company.industri ?? ''} placeholder="Manufaktur" />
                 <TF label="Kota"     name="kota"     defaultValue={company.kota ?? ''}     placeholder="Jakarta" />
